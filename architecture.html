@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AISOC 系统架构 · 交互式可视化</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --bg2:#0f1526; --panel:#131b30; --panel2:#182244; --line:#23304f;
+    --line2:#2c3c63; --txt:#dbe4ff; --sub:#8b98bd; --dim:#5b688c;
+    --cyan:#38bdf8; --violet:#8b5cf6; --pink:#f472b6; --amber:#fbbf24; --green:#34d399; --red:#f87171;
+    --blue:#60a5fa; --teal:#2dd4bf;
+    --mono:'Cascadia Code','JetBrains Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:radial-gradient(1200px 600px at 80% -10%, #16203a55, transparent),
+       radial-gradient(900px 500px at -10% 110%, #1b144055, transparent), var(--bg);
+       color:var(--txt); font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+       min-height:100vh; font-size:14px}
+  ::selection{background:#8b5cf655}
+
+  header{position:sticky;top:0;z-index:50;background:#0b0f1add;backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line);padding:14px 28px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:.5px}
+  .logo .mark{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--cyan),var(--violet));color:#fff;font-size:13px;font-weight:800}
+  .logo small{color:var(--dim);font-weight:400;font-size:11px;margin-left:4px}
+  nav{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+  nav button{background:transparent;border:1px solid transparent;color:var(--sub);padding:8px 14px;
+    border-radius:9px;cursor:pointer;font-size:13px;transition:.18s;font-family:inherit}
+  nav button:hover{color:var(--txt);background:#1a2340}
+  nav button.active{color:#fff;background:linear-gradient(135deg,#38bdf822,#8b5cf622);
+    border-color:#38bdf844;font-weight:600}
+
+  main{max-width:1480px;margin:0 auto;padding:26px 28px 80px}
+  .view{display:none;animation:fadein .35s ease}
+  .view.active{display:block}
+  @keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .crumb{color:var(--dim);font-size:12px;margin-bottom:6px;font-family:var(--mono)}
+  h1.view-title{font-size:21px;margin-bottom:4px}
+  p.view-desc{color:var(--sub);margin-bottom:22px;max-width:860px;line-height:1.7}
+  p.view-desc b{color:var(--txt)}
+
+  /* ---------- generic node card ---------- */
+  .node{border:1px solid var(--line2);background:linear-gradient(180deg,#161f3a,#121931);
+    border-radius:12px;padding:12px 14px;cursor:pointer;transition:.18s;position:relative;user-select:none}
+  .node:hover{transform:translateY(-2px);border-color:var(--cyan);box-shadow:0 8px 24px -8px #38bdf855}
+  .node.sel{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan),0 8px 24px -8px #38bdf866}
+  .node h4{font-size:13.5px;display:flex;align-items:center;gap:7px}
+  .node h4 .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .node p{font-size:11.5px;color:var(--sub);margin-top:5px;line-height:1.55}
+  .node .tag{position:absolute;top:10px;right:10px;font-size:9.5px;color:var(--dim);
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-family:var(--mono)}
+  .tier{display:flex;align-items:center;gap:8px;margin:20px 0 10px;color:var(--dim);
+    font-size:11px;letter-spacing:2px;font-family:var(--mono);text-transform:uppercase}
+  .tier::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line2),transparent)}
+  .grid{display:grid;gap:12px}
+
+  /* ---------- detail panel ---------- */
+  aside#detail{position:fixed;right:0;top:0;bottom:0;width:400px;max-width:92vw;z-index:100;
+    background:#0e1426f5;border-left:1px solid var(--line2);backdrop-filter:blur(16px);
+    transform:translateX(105%);transition:transform .3s cubic-bezier(.2,.8,.2,1);
+    padding:24px;overflow-y:auto;box-shadow:-30px 0 60px -30px #000}
+  aside#detail.open{transform:none}
+  #detail .close{position:absolute;top:14px;right:14px;background:#1a2340;border:1px solid var(--line2);
+    color:var(--sub);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:15px}
+  #detail .close:hover{color:#fff;border-color:var(--red)}
+  #detail h3{font-size:17px;margin:4px 0 2px}
+  #detail .kicker{font-size:11px;font-family:var(--mono);color:var(--cyan);letter-spacing:1px}
+  #detail .desc{color:var(--sub);line-height:1.8;margin:14px 0;font-size:13px}
+  #detail .kv{border-top:1px solid var(--line);margin-top:8px}
+  #detail .kv div{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+  #detail .kv b{color:var(--dim);font-weight:600;min-width:86px;flex:none}
+  #detail .kv span{color:var(--txt);font-family:var(--mono);font-size:12px;word-break:break-all}
+  #detail ul.pts{margin:12px 0 0 18px;color:var(--sub);font-size:12.5px;line-height:1.9}
+  #detail ul.pts code{color:var(--cyan);font-family:var(--mono);font-size:11.5px}
+
+  code.inline{font-family:var(--mono);font-size:11.5px;color:var(--cyan);
+    background:#38bdf814;border:1px solid #38bdf82e;border-radius:5px;padding:1px 6px}
+
+  /* ---------- view 1 : overview layers ---------- */
+  .ov-grid{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start}
+  .modrow{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .modrow.three{grid-template-columns:repeat(3,1fr)}
+  .modrow.two{grid-template-columns:repeat(2,1fr)}
+  .flow-hint{display:flex;justify-content:center;color:var(--dim);font-size:11px;
+    font-family:var(--mono);padding:2px 0}
+  .flow-hint .arr{color:var(--cyan);animation:pulse-d 1.6s infinite}
+  @keyframes pulse-d{0%,100%{opacity:.35}50%{opacity:1}}
+
+  /* ---------- view 2 : dataflow (sequence) ---------- */
+  .actors{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:8px}
+  .actor{text-align:center}
+  .actor .box{border:1px solid var(--line2);border-radius:12px;padding:11px 8px;
+    background:linear-gradient(180deg,#161f3a,#121931);cursor:pointer;transition:.18s}
+  .actor .box:hover{border-color:var(--cyan);transform:translateY(-2px)}
+  .actor .box.sel{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan)}
+  .actor .ic{font-size:20px}
+  .actor h5{font-size:12.5px;margin-top:6px}
+  .actor small{color:var(--dim);font-size:10px;font-family:var(--mono)}
+  .seq{position:relative;border:1px solid var(--line);border-radius:14px;background:#0d1324;padding:26px 10px 18px;overflow:hidden}
+  .seq .lifelines{position:absolute;inset:26px 10px 18px;display:grid;grid-template-columns:repeat(5,1fr);pointer-events:none}
+  .seq .lifelines i{border-left:1px dashed #23304f88;margin:0 50%}
+  .steps{position:relative;z-index:2;display:flex;flex-direction:column;gap:4px}
+  .srow{display:grid;grid-template-columns:repeat(5,1fr);align-items:center;min-height:34px}
+  .msg{grid-column:var(--gs)/span var(--sp);display:flex;align-items:center;position:relative;height:30px}
+  .msg .lbl{font-size:11.5px;font-family:var(--mono);white-space:nowrap;padding:0 8px;z-index:2}
+  .msg .lbl small{color:var(--dim);font-size:10px;display:block;font-family:inherit}
+  .msg.r .lbl{margin-left:auto;text-align:right}
+  .msg .wire{position:absolute;left:0;right:0;top:50%;height:2px;overflow:hidden;opacity:.9}
+  .msg .wire::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,
+    var(--c,#38bdf8) 0 8px,transparent 8px 16px);animation:dashmv 1.1s linear infinite}
+  @keyframes dashmv{to{background-position:16px 0}}
+  .msg.selfbox{justify-self:center;grid-column:var(--gs)/span 1;border:1px solid var(--line2);
+    background:#0f1526;border-radius:8px;padding:5px 10px;font-size:11px;color:var(--sub);
+    font-family:var(--mono);white-space:nowrap}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;color:var(--sub);font-size:11.5px}
+  .legend i{display:inline-block;width:18px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+  /* ---------- view 3 : AI chain ---------- */
+  .ai-wrap{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+  .panel{border:1px solid var(--line);border-radius:16px;background:#0d1324;padding:20px}
+  .panel h3{font-size:15px;margin-bottom:4px}
+  .panel .sub{color:var(--dim);font-size:12px;margin-bottom:16px;line-height:1.6}
+  .chain{display:flex;flex-direction:column;gap:0}
+  .chain .st{border:1px solid var(--line2);border-radius:11px;padding:10px 14px;
+    background:linear-gradient(180deg,#161f3a,#121931);cursor:pointer;transition:.18s;position:relative}
+  .chain .st:hover{border-color:var(--pink);transform:translateX(4px)}
+  .chain .st.sel{border-color:var(--pink);box-shadow:0 0 0 1px var(--pink)}
+  .chain .st h5{font-size:13px;display:flex;gap:8px;align-items:center}
+  .chain .st h5 em{font-style:normal;font-family:var(--mono);font-size:10px;color:#fff;
+    background:linear-gradient(135deg,var(--pink),var(--violet));border-radius:5px;padding:1px 6px}
+  .chain .st p{font-size:11.5px;color:var(--sub);margin-top:4px;line-height:1.55}
+  .chain .down{display:flex;justify-content:center;padding:3px 0;color:var(--violet);font-size:13px}
+  .prov-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+  .prov{border:1px dashed var(--line2);border-radius:10px;padding:9px 10px;text-align:center;
+    cursor:pointer;transition:.18s;font-size:12px}
+  .prov:hover{border-color:var(--green);border-style:solid;transform:translateY(-2px)}
+  .prov.sel{border-color:var(--green);border-style:solid;background:#34d39911}
+  .prov small{display:block;color:var(--dim);font-size:10px;margin-top:3px;font-family:var(--mono)}
+  .tools{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tool{border:1px solid var(--line2);border-radius:10px;padding:10px 12px;cursor:pointer;transition:.18s}
+  .tool:hover{border-color:var(--amber);transform:translateY(-2px)}
+  .tool.sel{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber)}
+  .tool h6{font-size:12.5px;font-family:var(--mono);color:var(--amber)}
+  .tool p{font-size:11px;color:var(--sub);margin-top:4px;line-height:1.5}
+
+  /* ---------- view 4 : business flow / state machines ---------- */
+  .sm{margin-bottom:26px}
+  .sm h3{font-size:14.5px;margin-bottom:4px}
+  .sm .sub{color:var(--dim);font-size:12px;margin-bottom:12px}
+  .states{display:flex;align-items:center;gap:0;flex-wrap:wrap;row-gap:14px}
+  .state{border:1px solid var(--line2);border-radius:999px;padding:7px 16px;font-size:12.5px;
+    font-family:var(--mono);cursor:pointer;transition:.18s;background:#101730;white-space:nowrap}
+  .state:hover{transform:translateY(-2px)}
+  .state.sel{box-shadow:0 0 0 1px currentColor}
+  .state.ok{color:var(--green);border-color:#34d39955}
+  .state.warn{color:var(--amber);border-color:#fbbf2455}
+  .state.bad{color:var(--red);border-color:#f8717155}
+  .state.info{color:var(--cyan);border-color:#38bdf855}
+  .state.vio{color:var(--violet);border-color:#8b5cf655}
+  .arr-r{color:var(--dim);padding:0 10px;font-size:12px;flex:none}
+  .state-note{margin-top:10px;color:var(--sub);font-size:12.5px;line-height:1.7;min-height:38px;
+    border-left:2px solid var(--line2);padding:2px 0 2px 14px}
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:8px}
+  .kpi{border:1px solid var(--line);border-radius:12px;padding:14px;background:#101730}
+  .kpi b{font-size:18px;display:block;background:linear-gradient(90deg,var(--cyan),var(--violet));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .kpi span{color:var(--sub);font-size:11.5px}
+
+  /* ---------- view 5 : deploy ---------- */
+  .dep-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:22px;align-items:start}
+  .machine{border:1px solid var(--line2);border-radius:16px;background:#0d1324;padding:18px;position:relative}
+  .machine h3{font-size:13px;color:var(--sub);font-family:var(--mono);letter-spacing:1px;margin-bottom:14px}
+  .machine h3 b{color:var(--txt)}
+  .ct{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .ct .node p{font-size:10.5px}
+  .pipe{display:flex;flex-direction:column;gap:0;margin-top:6px}
+  .pipe .pstage{border:1px solid var(--line2);border-radius:10px;padding:9px 13px;background:#101730;
+    cursor:pointer;transition:.18s;display:flex;gap:10px;align-items:baseline}
+  .pipe .pstage:hover{border-color:var(--green);transform:translateX(4px)}
+  .pipe .pstage.sel{border-color:var(--green);box-shadow:0 0 0 1px var(--green)}
+  .pipe .pstage em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--green)}
+  .pipe .pstage h6{font-size:12.5px;font-weight:600}
+  .pipe .pstage small{color:var(--dim);font-size:11px;margin-left:auto;font-family:var(--mono)}
+  .pipe .down{text-align:center;color:var(--dim);font-size:11px;padding:2px 0}
+
+  /* ---------- view 6 : stack & ADR ---------- */
+  table.tb{width:100%;border-collapse:collapse;font-size:13px}
+  table.tb th{text-align:left;color:var(--dim);font-weight:600;font-size:11.5px;letter-spacing:1px;
+    text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--line2)}
+  table.tb td{padding:11px 12px;border-bottom:1px solid var(--line);color:var(--sub);line-height:1.6}
+  table.tb td:first-child{color:var(--txt);font-weight:600;white-space:nowrap}
+  table.tb code{font-family:var(--mono);font-size:12px;color:var(--cyan)}
+  .adr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .adr{border:1px solid var(--line);border-radius:12px;padding:14px;background:#101730;transition:.18s}
+  .adr:hover{border-color:var(--violet)}
+  .adr b{font-size:13px;display:flex;gap:8px;align-items:center}
+  .adr b em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--violet);
+    border:1px solid #8b5cf655;border-radius:5px;padding:1px 6px;flex:none}
+  .adr p{color:var(--sub);font-size:12px;line-height:1.7;margin-top:7px}
+  .adr p s{color:var(--dim);text-decoration-color:#f8717188}
+
+  .footnote{margin-top:34px;color:var(--dim);font-size:11.5px;line-height:1.8;border-top:1px solid var(--line);padding-top:16px}
+  @media (max-width:1100px){
+    .ov-grid,.ai-wrap,.dep-grid,.adr-grid{grid-template-columns:1fr}
+    .modrow,.modrow.three,.modrow.two,.actors,.srow{grid-template-columns:1fr 1fr}
+    .lifelines{display:none}.seq{display:none}
+    .kpi-row{grid-template-columns:1fr 1fr}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><span class="mark">AI</span>AISOC <small>AI-Powered Security Operations Center · 架构可视化 v1.0</small></div>
+  <nav id="tabs">
+    <button data-v="v1" class="active">系统总览</button>
+    <button data-v="v2">数据流</button>
+    <button data-v="v3">AI 调用链路</button>
+    <button data-v="v4">核心业务流程</button>
+    <button data-v="v5">部署结构</button>
+    <button data-v="v6">技术栈 / ADR</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- ================= VIEW 1 : OVERVIEW ================= -->
+<section class="view active" id="v1">
+  <div class="crumb">// architecture / overall</div>
+  <h1 class="view-title">系统总览 — 模块化单体 · 六层架构</h1>
+  <p class="view-desc">点击任意模块查看职责与技术要点。<b>设计原则</b>：模块化单体（ADR-1）而非微服务——1~5 人团队、单机可运维；模块间仅经 Service 接口调用，保持未来可拆分性。所有外部 LLM 经统一 Gateway 接入（ADR-2/3/4）。</p>
+  <div class="ov-grid">
+    <div>
+      <div class="tier">Client Layer · 客户端</div>
+      <div class="grid modrow two">
+        <div class="node" data-d="spa"><h4><span class="dot" style="background:var(--blue)"></span>React SPA 控制台</h4><p>桌面优先 SaaS UI · Dark Mode · RBAC 驱动的菜单/按钮</p><span class="tag">React 18 + TS</span></div>
+        <div class="node" data-d="sources"><h4><span class="dot" style="background:var(--teal)"></span>外部告警源</h4><p>EDR / SIEM / WAF / 脚本，经 Webhook & REST API 推入</p><span class="tag">API Key</span></div>
+      </div>
+      <div class="flow-hint"><span class="arr">▼</span> HTTPS · JWT / API Key <span class="arr">▼</span></div>
+
+      <div class="tier">Edge · 接入层</div>
+      <div class="grid modrow">
+        <div class="node" data-d="nginx" style="grid-column:1/-1"><h4><span class="dot" style="background:var(--teal)"></span>Nginx / Caddy 反向代理</h4><p>TLS 终止 · 安全响应头 · 静态资源 · 第一层限流</p><span class="tag">Edge</span></div>
+      </div>
+      <div class="flow-hint"><span class="arr">▼</span> <span class="arr">▼</span> <span class="arr">▼</span></div>
+
+      <div class="tier">Application Layer · FastAPI 模块化单体</div>
+      <div class="grid modrow">
+        <div class="node" data-d="identity"><h4><span class="dot" style="background:var(--violet)"></span>Identity</h4><p>认证 · RBAC · 用户/角色/API Key</p><span class="tag">module</span></div>
+        <div class="node" data-d="alerts"><h4><span class="dot" style="background:var(--violet)"></span>Alerts</h4><p>告警接入 · 幂等去重 · 确认闭环</p><span class="tag">module</span></div>
+        <div class="node" data-d="incidents"><h4><span class="dot" style="background:var(--violet)"></span>Incidents</h4><p>事件 · 任务 · 评论 · 状态机</p><span class="tag">module</span></div>
+        <div class="node" data-d="knowledge"><h4><span class="dot" style="background:var(--violet)"></span>Knowledge</h4><p>文档 · 切片 · 向量检索(RAG)</p><span class="tag">module</span></div>
+        <div class="node" data-d="analytics"><h4><span class="dot" style="background:var(--violet)"></span>Analytics</h4><p>降噪率 · MTTR · 成本看板</p><span class="tag">module</span></div>
+      </div>
+      <div class="grid modrow two" style="margin-top:12px">
+        <div class="node" data-d="aicore"><h4><span class="dot" style="background:var(--pink)"></span>AI Core（共享内核模块）</h4><p>LLM Gateway · Agent Runner · 工具注册表 · Prompt 管理 · 成本核算</p><span class="tag">kernel</span></div>
+        <div class="node" data-d="platform"><h4><span class="dot" style="background:var(--green)"></span>Platform（平台服务）</h4><p>审计日志 · 通知 · 系统配置 · 健康检查 · 幂等</p><span class="tag">platform</span></div>
+      </div>
+      <div class="flow-hint"><span class="arr">▼</span> 异步任务（Celery） <span class="arr">▼</span></div>
+
+      <div class="tier">Async Worker Layer</div>
+      <div class="grid modrow three">
+        <div class="node" data-d="worker"><h4><span class="dot" style="background:var(--amber)"></span>Celery Worker</h4><p>AI 研判流水线 · 知识库索引 · 通知发送</p><span class="tag">worker</span></div>
+        <div class="node" data-d="beat"><h4><span class="dot" style="background:var(--amber)"></span>Celery Beat</h4><p>定时任务：超时研判重试 · 备份调度 · 指标汇聚</p><span class="tag">scheduler</span></div>
+        <div class="node" data-d="retry"><h4><span class="dot" style="background:var(--amber)"></span>重试与死信策略</h4><p>指数退避 ×3 → 死信队列 → 运维告警</p><span class="tag">resilience</span></div>
+      </div>
+      <div class="flow-hint"><span class="arr">▼</span></div>
+
+      <div class="tier">Data Layer</div>
+      <div class="grid modrow three">
+        <div class="node" data-d="pg"><h4><span class="dot" style="background:var(--amber)"></span>PostgreSQL 16</h4><p>关系数据 + JSONB + pgvector 向量，单库三合一</p><span class="tag">stateful</span></div>
+        <div class="node" data-d="redis"><h4><span class="dot" style="background:var(--amber)"></span>Redis 7</h4><p>缓存 · 限流 · 分布式锁 · Celery broker · token 黑名单</p><span class="tag">stateful</span></div>
+        <div class="node" data-d="storage"><h4><span class="dot" style="background:var(--amber)"></span>对象存储卷</h4><p>知识库原始文档（本地卷 / MinIO 可切换）</p><span class="tag">stateful</span></div>
+      </div>
+      <div class="flow-hint"><span class="arr">▼</span> 经 Gateway 白名单出网 <span class="arr">▼</span></div>
+
+      <div class="tier">External · LLM Providers（可插拔）</div>
+      <div class="grid modrow three">
+        <div class="node" data-d="llmcloud"><h4><span class="dot" style="background:var(--pink)"></span>云端模型</h4><p>OpenAI / Anthropic / Gemini / Qwen / DeepSeek</p><span class="tag">provider</span></div>
+        <div class="node" data-d="ollama"><h4><span class="dot" style="background:var(--pink)"></span>Ollama 本地模型</h4><p>私有化部署选项 · 数据不出域</p><span class="tag">provider</span></div>
+        <div class="node" data-d="rulefb"><h4><span class="dot" style="background:var(--red)"></span>规则引擎降级</h4><p>LLM 全故障时的兜底打标，系统不瘫（ADR-10）</p><span class="tag">fallback</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h3>主闭环（一图记忆）</h3>
+        <div class="sub">这是整个系统的存在理由：告警进得来、AI 研判得准、人确认得了、统计得出价值。</div>
+        <div class="chain">
+          <div class="st" data-d="f1"><h5><em>1</em> 告警接入</h5><p>Webhook/API → API Key 鉴权 → 幂等去重 → alerts 表</p></div>
+          <div class="down">▼</div>
+          <div class="st" data-d="f2"><h5><em>2</em> AI 研判（异步）</h5><p>Celery → Agent 富化（情报/资产/历史/知识库）→ LLM 结构化结论</p></div>
+          <div class="down">▼</div>
+          <div class="st" data-d="f3"><h5><em>3</em> 人工确认</h5><p>分析师复核 AI 结论：真实 / 误报 / 需处置（Human-in-the-loop）</p></div>
+          <div class="down">▼</div>
+          <div class="st" data-d="f4"><h5><em>4</em> 事件与处置</h5><p>升级为事件 → 任务分派 → 状态流转 → 关闭复盘</p></div>
+          <div class="down">▼</div>
+          <div class="st" data-d="f5"><h5><em>5</em> 价值度量</h5><p>降噪率 / 采纳率 / MTTR / Token 成本 → 反哺优化</p></div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:18px">
+        <h3>硬性架构约束</h3>
+        <ul class="pts">
+          <li>AI 只建议、不处置——写操作必须人工批准</li>
+          <li>每次 LLM 调用必落 <code>llm_calls</code>（token/成本/耗时）</li>
+          <li>Agent 每步必落 <code>ai_steps/ai_tool_calls</code>，可回放</li>
+          <li>所有写接口幂等（Idempotency-Key / 唯一键）</li>
+          <li>配置缺失即启动失败，无默认密钥（fail fast）</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= VIEW 2 : DATAFLOW ================= -->
+<section class="view" id="v2">
+  <div class="crumb">// architecture / dataflow</div>
+  <h1 class="view-title">数据流 — 告警研判全链路时序</h1>
+  <p class="view-desc">从外部告警源到分析师确认的完整数据流。<b>虚线为动画演示传输方向</b>；点击顶部参与方查看细节。注意两条铁律：① 研判异步执行（HTTP 请求即刻返回，不阻塞）；② 每一步都有落库与审计。</p>
+  <div class="actors">
+    <div class="actor"><div class="box" data-d="sources"><div class="ic">📡</div><h5>告警源</h5><small>EDR/SIEM/脚本</small></div></div>
+    <div class="actor"><div class="box" data-d="api"><div class="ic">⚙️</div><h5>FastAPI</h5><small>Ingest + Query</small></div></div>
+    <div class="actor"><div class="box" data-d="workerbox"><div class="ic">🔀</div><h5>Celery Worker</h5><small>triage pipeline</small></div></div>
+    <div class="actor"><div class="box" data-d="aibox"><div class="ic">🧠</div><h5>AI Core</h5><small>Agent + LLM</small></div></div>
+    <div class="actor"><div class="box" data-d="analyst"><div class="ic">👨‍💻</div><h5>分析师</h5><small>React SPA</small></div></div>
+  </div>
+  <div class="seq">
+    <div class="lifelines"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="steps">
+      <div class="srow"><div class="msg r" style="--gs:1;--sp:1;--c:var(--teal)"><span class="lbl">POST /api/v1/ingest/alerts <small>API Key + Idempotency-Key</small></span><span class="wire"></span></div></div>
+      <div class="srow"><div class="msg selfbox" style="--gs:2">校验 Pydantic → (source, external_id) 去重 → INSERT alerts(status=new)</div></div>
+      <div class="srow"><div class="msg" style="--gs:2;--sp:1;--c:var(--amber)"><span class="lbl">dispatch triage_alert(alert_id) <small>202 Accepted，异步</small></span><span class="wire"></span></div></div>
+      <div class="srow"><div class="msg selfbox" style="--gs:3">status=new→triaging · 拉取告警+上下文 · 构建 Agent 运行时</div></div>
+      <div class="srow"><div class="msg r" style="--gs:3;--sp:1;--c:var(--pink)"><span class="lbl">tool: query_threat_intel(ioc)</span><span class="wire"></span></div></div>
+      <div class="srow"><div class="msg r" style="--gs:3;--sp:1;--c:var(--pink)"><span class="lbl">tool: query_asset(ip) / search_similar_alerts() / search_knowledge() <small>每步落 ai_tool_calls</small></span><span class="wire"></span></div></div>
+      <div class="srow"><div class="msg r" style="--gs:4;--sp:1;--c:var(--pink)"><span class="lbl">LLM Gateway → 路由/重试/熔断 → Provider.chat(structured) <small>tokens+成本落 llm_calls</small></span><span class="wire"></span></div></div>
+      <div class="srow"><div class="msg selfbox" style="--gs:4">Pydantic 校验 TriagedVerdict · 失败自动重试一次 · 仍失败→fallback 链</div></div>
+      <div class="srow"><div class="msg" style="--gs:4;--sp:-1;--c:var(--amber)"><span class="wire"></span><span class="lbl">persist triage_results + ai_runs(完成) <small>status=triaged</small></span></div></div>
+      <div class="srow"><div class="msg" style="--gs:4;--sp:-1;--c:var(--violet)"><span class="wire"></span><span class="lbl">notification: 研判完成 → 站内通知</span></div></div>
+      <div class="srow"><div class="msg" style="--gs:2;--sp:3;--c:var(--blue)"><span class="wire"></span><span class="lbl">GET /alerts?status=triaged · 查看 AI 研判报告（步骤可回放）</span></div></div>
+      <div class="srow"><div class="msg r" style="--gs:5;--sp:-1;--c:var(--green)"><span class="lbl">POST /alerts/{id}/confirm <small>真实/误报/需处置 + 理由 → 审计</small></span><span class="wire"></span></div></div>
+      <div class="srow"><div class="msg selfbox" style="--gs:2">confirmed→升级 Incident(可选) / 关闭 · 采纳率统计更新</div></div>
+    </div>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--teal)"></i>外部接入</span>
+    <span><i style="background:var(--amber)"></i>持久化/队列</span>
+    <span><i style="background:var(--pink)"></i>AI 调用</span>
+    <span><i style="background:var(--blue)"></i>用户交互</span>
+    <span><i style="background:var(--green)"></i>人工决策</span>
+    <span><i style="background:var(--violet)"></i>通知</span>
+  </div>
+</section>
+
+<!-- ================= VIEW 3 : AI CHAIN ================= -->
+<section class="view" id="v3">
+  <div class="crumb">// architecture / ai-internals</div>
+  <h1 class="view-title">AI 调用链路 — Gateway · Agent · RAG</h1>
+  <p class="view-desc">业务代码只依赖 <code class="inline">LLMGateway</code> 接口。左侧为调用链职责（每环可独立测试），右侧为 Agent 工具白名单与 RAG 管道。点击查看每环节的失败语义。</p>
+  <div class="ai-wrap">
+    <div class="panel">
+      <h3>LLM Gateway 职责链</h3>
+      <div class="sub">business → gateway.chat(request) → … → provider。任一环节失败都有确定性行为，绝无静默失败。</div>
+      <div class="chain">
+        <div class="st" data-d="g1"><h5><em>1</em> Model Router</h5><p>按任务类型+能力+成本+健康度选模型：研判→强模型，嵌入/摘要→廉价模型（配置驱动）</p></div>
+        <div class="down">▼</div>
+        <div class="st" data-d="g2"><h5><em>2</em> Budget Guard</h5><p>单次调用/单次研判 token 预算检查，超限直接中止并标记，不烧钱</p></div>
+        <div class="down">▼</div>
+        <div class="st" data-d="g3"><h5><em>3</em> Timeout</h5><p>连接 5s / 总 60s（研判链 120s）→ 超时按失败处理进入重试</p></div>
+        <div class="down">▼</div>
+        <div class="st" data-d="g4"><h5><em>4</em> Retry</h5><p>指数退避+抖动 ×3，仅 429/5xx/网络错误；4xx 参数错误绝不重试</p></div>
+        <div class="down">▼</div>
+        <div class="st" data-d="g5"><h5><em>5</em> Circuit Breaker</h5><p>滑动窗口错误率>50% 熔断 60s → 直接走 fallback，防雪崩</p></div>
+        <div class="down">▼</div>
+        <div class="st" data-d="g6"><h5><em>6</em> Provider Adapter</h5><p>OpenAI / Anthropic / Gemini / Qwen / DeepSeek / Ollama / FakeLLM(测试)——统一协议转换</p></div>
+        <div class="down">▼</div>
+        <div class="st" data-d="g7"><h5><em>7</em> Structured Output</h5><p>JSON Schema Prompt + Pydantic 校验；失败携带校验错误重试 1 次；仍失败不落库</p></div>
+        <div class="down">▼</div>
+        <div class="st" data-d="g8"><h5><em>8</em> Accounting & Observability</h5><p>tokens/单价/成本落 llm_calls；trace span + 结构化日志；熔断/路由统计</p></div>
+      </div>
+      <div class="prov-row">
+        <div class="prov" data-d="p1">OpenAI<small>gpt-4.1 / text-embedding-3-small</small></div>
+        <div class="prov" data-d="p2">Anthropic<small>claude-sonnet</small></div>
+        <div class="prov" data-d="p3">Gemini<small>gemini-2.5</small></div>
+        <div class="prov" data-d="p4">Qwen<small>qwen-max / plus</small></div>
+        <div class="prov" data-d="p5">DeepSeek<small>deepseek-chat</small></div>
+        <div class="prov" data-d="p6">Ollama<small>qwen2.5 / bge-m3 本地</small></div>
+      </div>
+    </div>
+    <div>
+      <div class="panel">
+        <h3>告警研判 Agent（自研运行时，ADR-4）</h3>
+        <div class="sub">ReAct 变体：计划 → 工具 → 观察 → 结论。max_steps=8 · token 预算 30k · 120s 超时 · 每步落库可回放。Agent 无任何写权限，危险动作只生成"建议"。</div>
+        <div class="tools">
+          <div class="tool" data-d="t1"><h6>query_threat_intel(ioc)</h6><p>本地 IOC 情报库查询：IP/域名/哈希信誉、标签、最后出现时间</p></div>
+          <div class="tool" data-d="t2"><h6>query_asset(target)</h6><p>资产库：IP/主机名的归属、重要性等级、负责人、暴露面</p></div>
+          <div class="tool" data-d="t3"><h6>search_similar_alerts()</h6><p>历史相似告警检索：结构特征 + 向量相似，返回历史结论分布</p></div>
+          <div class="tool" data-d="t4"><h6>search_knowledge(query)</h6><p>RAG 检索 Playbook/预案，返回带引用的 chunk</p></div>
+          <div class="tool" data-d="t5"><h6>list_alert_context()</h6><p>同一事件关联告警聚合视图（同主机/同时间窗）</p></div>
+          <div class="tool" data-d="t6"><h6>propose_action(action)</h6><p>生成"建议处置"（如封禁 IP）——<b>仅记录，人工批准后执行</b></p></div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:18px">
+        <h3>RAG 管道</h3>
+        <div class="chain">
+          <div class="st" data-d="r1"><h5><em>R1</em> Ingest</h5><p>上传 md/txt/pdf → 解析 → 800 token 切片（15% 重叠，保留标题路径）</p></div>
+          <div class="down">▼</div>
+          <div class="st" data-d="r2"><h5><em>R2</em> Embed</h5><p>Gateway.embed() → pgvector HNSW(cosine) 入库（与业务同库同事务）</p></div>
+          <div class="down">▼</div>
+          <div class="st" data-d="r3"><h5><em>R3</em> Retrieve</h5><p>Top-K=6 · 相似度<0.3 丢弃 · 返回 chunk + 文档位置元数据</p></div>
+          <div class="down">▼</div>
+          <div class="st" data-d="r4"><h5><em>R4</em> Grounded Answer</h5><p>结论必须带 [n] 引用编号 → 前端可点击跳转原文；无证据不下结论</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= VIEW 4 : BUSINESS FLOW ================= -->
+<section class="view" id="v4">
+  <div class="crumb">// architecture / workflows</div>
+  <h1 class="view-title">核心业务流程 — 显式状态机（ADR-7）</h1>
+  <p class="view-desc">三条状态流全部用「枚举 + 迁移白名单表」实现（约百行，可穷举测试），非法迁移抛业务异常并审计。点击状态节点查看进入/离开语义。</p>
+
+  <div class="sm">
+    <h3>① 告警生命周期（含 AI 研判）</h3>
+    <div class="sub">核心闭环：AI 产出研判建议 → 人确认 → 分流。degraded 标记表示 LLM 不可用时的规则降级结果。</div>
+    <div class="states">
+      <span class="state info" data-d="s-new">new</span><span class="arr-r">→</span>
+      <span class="state vio" data-d="s-triaging">triaging</span><span class="arr-r">→</span>
+      <span class="state ok" data-d="s-triaged">triaged</span><span class="arr-r">→</span>
+      <span class="state warn" data-d="s-ct">confirmed_true</span><span class="arr-r">→</span>
+      <span class="state warn" data-d="s-incident">incident_created</span>
+      <span class="arr-r" style="padding:0 6px">‖</span>
+      <span class="state bad" data-d="s-cf">confirmed_false</span>
+      <span class="arr-r" style="padding:0 6px">‖</span>
+      <span class="state info" data-d="s-failed">triage_failed</span>
+    </div>
+    <div class="state-note" id="note1">点击上方状态查看说明…</div>
+  </div>
+
+  <div class="sm">
+    <h3>② 事件生命周期</h3>
+    <div class="sub">经典 PICERL 模型。closed 为终态；非终态均可 reopened（重开必须填理由，写入审计）。</div>
+    <div class="states">
+      <span class="state info" data-d="i-new">new</span><span class="arr-r">→</span>
+      <span class="state vio" data-d="i-inv">investigating</span><span class="arr-r">→</span>
+      <span class="state warn" data-d="i-con">contained</span><span class="arr-r">→</span>
+      <span class="state warn" data-d="i-era">eradicated</span><span class="arr-r">→</span>
+      <span class="state ok" data-d="i-rec">recovered</span><span class="arr-r">→</span>
+      <span class="state ok" data-d="i-clo">closed</span>
+      <span class="arr-r" style="padding:0 6px">↺</span>
+      <span class="state bad" data-d="i-re">reopened</span>
+    </div>
+    <div class="state-note" id="note2">点击上方状态查看说明…</div>
+  </div>
+
+  <div class="sm">
+    <h3>③ 处置任务生命周期</h3>
+    <div class="sub">任务挂在事件下，负责人明确；blocked 必须填阻塞原因。</div>
+    <div class="states">
+      <span class="state info" data-d="t-todo">todo</span><span class="arr-r">→</span>
+      <span class="state vio" data-d="t-doing">in_progress</span><span class="arr-r">→</span>
+      <span class="state ok" data-d="t-done">done</span>
+      <span class="arr-r" style="padding:0 6px">‖</span>
+      <span class="state bad" data-d="t-blocked">blocked</span>
+      <span class="arr-r" style="padding:0 6px">‖</span>
+      <span class="state bad" data-d="t-cancel">cancelled</span>
+    </div>
+    <div class="state-note" id="note3">点击上方状态查看说明…</div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi"><b>≥40%</b><span>告警降噪率目标（AI 判误报且人确认）</span></div>
+    <div class="kpi"><b>≤60s</b><span>P95 研判时延（接入→AI 结论）</span></div>
+    <div class="kpi"><b>≥75%</b><span>AI 结论采纳率目标</span></div>
+    <div class="kpi"><b>100%</b><span>AI 调用成本/审计覆盖率</span></div>
+  </div>
+</section>
+
+<!-- ================= VIEW 5 : DEPLOY ================= -->
+<section class="view" id="v5">
+  <div class="crumb">// architecture / deployment</div>
+  <h1 class="view-title">部署结构 — 单机生产拓扑 + CI/CD 流水线</h1>
+  <p class="view-desc">目标用户（中小企业）运维能力有限，<b>单机 Docker Compose 是最务实的生产形态</b>（ADR-9），K8s manifest 为 P2。右侧流水线点击查看阶段门禁。</p>
+  <div class="dep-grid">
+    <div>
+      <div class="machine">
+        <h3>PROD HOST · docker compose · <b>aisoc-stack</b></h3>
+        <div class="ct">
+          <div class="node" data-d="d-nginx"><h4><span class="dot" style="background:var(--teal)"></span>nginx</h4><p>TLS/HTTP2 · 安全头 · 静态资源 · 限流 :443</p></div>
+          <div class="node" data-d="d-api"><h4><span class="dot" style="background:var(--violet)"></span>api ×2</h4><p>uvicorn workers · /healthz /readyz /metrics</p></div>
+          <div class="node" data-d="d-worker"><h4><span class="dot" style="background:var(--amber)"></span>worker</h4><p>celery concurrency=4 · AI 流水线</p></div>
+          <div class="node" data-d="d-beat"><h4><span class="dot" style="background:var(--amber)"></span>beat</h4><p>定时调度（重试/备份/汇聚）</p></div>
+          <div class="node" data-d="d-pg"><h4><span class="dot" style="background:var(--green)"></span>postgres:16</h4><p>数据卷 + pgvector · WAL · 每日 pg_dump</p></div>
+          <div class="node" data-d="d-redis"><h4><span class="dot" style="background:var(--green)"></span>redis:7</h4><p>AOF · broker/cache/lock</p></div>
+          <div class="node" data-d="d-ollama"><h4><span class="dot" style="background:var(--pink)"></span>ollama(可选)</h4><p>本地模型 · 数据不出域选项</p></div>
+          <div class="node" data-d="d-monitor"><h4><span class="dot" style="background:var(--cyan)"></span>prometheus+grafana</h4><p>指标采集 · 预置看板 · 告警规则</p></div>
+          <div class="node" data-d="d-backup"><h4><span class="dot" style="background:var(--red)"></span>backup sidecar</h4><p>pg_dump→加密→对象存储 · 保留 30 天</p></div>
+        </div>
+      </div>
+      <div class="machine" style="margin-top:18px">
+        <h3>环境矩阵 · <b>dev → test → staging → prod</b></h3>
+        <table class="tb">
+          <tr><th>环境</th><th>LLM</th><th>数据</th><th>说明</th></tr>
+          <tr><td>dev</td><td><code>FakeLLM/真实</code></td><td>SQLite 可降级</td><td>本机，docker-compose.override</td></tr>
+          <tr><td>test</td><td><code>FakeLLM</code>（确定性）</td><td>PG service 容器</td><td>CI 全量迁移+测试</td></tr>
+          <tr><td>staging</td><td>真实廉价模型</td><td>模拟告警源</td><td>生产同构 · 压测/冒烟</td></tr>
+          <tr><td>prod</td><td>路由策略</td><td>真实</td><td>手动审批发布 · 一键回滚</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>GitHub Actions CI/CD</h3>
+      <div class="sub">每次 push 到 main 触发。质量门禁不过不放行，staging 冒烟通过后人工审批进 prod。</div>
+      <div class="pipe">
+        <div class="pstage" data-d="c1"><em>01</em><h6>Lint & Type</h6><small>ruff · mypy · eslint · tsc</small></div>
+        <div class="down">▼</div>
+        <div class="pstage" data-d="c2"><em>02</em><h6>Unit + Integration Tests</h6><small>pytest · PG/Redis service 容器 · coverage≥80% core</small></div>
+        <div class="down">▼</div>
+        <div class="pstage" data-d="c3"><em>03</em><h6>Frontend Build & Tests</h6><small>vitest · build 产物体积预算</small></div>
+        <div class="down">▼</div>
+        <div class="pstage" data-d="c4"><em>04</em><h6>AI Evaluation</h6><small>黄金数据集回归：结构化合法性/定级准确率 门禁</small></div>
+        <div class="down">▼</div>
+        <div class="pstage" data-d="c5"><em>05</em><h6>Build & Scan</h6><small>多阶段镜像 sha tag · trivy HIGH 拒绝 · pip-audit/npm audit</small></div>
+        <div class="down">▼</div>
+        <div class="pstage" data-d="c6"><em>06</em><h6>Deploy Staging</h6><small>alembic upgrade head → 健康检查 → E2E smoke(Playwright)</small></div>
+        <div class="down">▼</div>
+        <div class="pstage" data-d="c7"><em>07</em><h6>Manual Approval</h6><small>GitHub Environment 保护</small></div>
+        <div class="down">▼</div>
+        <div class="pstage" data-d="c8"><em>08</em><h6>Deploy Prod / Rollback</h6><small>切 tag + alembic downgrade · 一键回滚脚本</small></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= VIEW 6 : STACK & ADR ================= -->
+<section class="view" id="v6">
+  <div class="crumb">// architecture / stack & decisions</div>
+  <h1 class="view-title">技术栈与架构决策记录（ADR）</h1>
+  <p class="view-desc">每条决策均经过备选方案对比。完整理由见 <code class="inline">docs/ARCHITECTURE.md</code> 第 13 节。</p>
+  <table class="tb">
+    <tr><th>层</th><th>选型</th><th>关键理由</th></tr>
+    <tr><td>后端</td><td><code>Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 · Alembic</code></td><td>AI 生态最成熟；Pydantic 一份模型同时服务 API 校验与 LLM 结构化输出；原生异步适配流式</td></tr>
+    <tr><td>数据库</td><td><code>PostgreSQL 16 + pgvector</code></td><td>关系/JSONB/向量三合一，单库事务强一致，少一个有状态服务</td></tr>
+    <tr><td>缓存/队列</td><td><code>Redis 7 · Celery</code></td><td>限流/锁/broker 成熟组合，重试与定时任务开箱即用</td></tr>
+    <tr><td>前端</td><td><code>React 18 · TS strict · Vite · Tailwind · TanStack Query · Zustand</code></td><td>现代 SaaS 观感（非传统后台）；服务端状态与 UI 状态分离</td></tr>
+    <tr><td>AI</td><td><code>自研 LLM Gateway · Agent 运行时 · pgvector RAG</code></td><td>厂商可插拔、每步可审计可回放、成本可核算；不依赖 LangChain 重抽象</td></tr>
+    <tr><td>可观测</td><td><code>structlog · OpenTelemetry · Prometheus/Grafana · Sentry(可选)</code></td><td>request_id 全链路贯穿 HTTP→Celery→LLM</td></tr>
+    <tr><td>测试</td><td><code>pytest · httpx · Playwright · FakeLLM</code></td><td>确定性 AI 测试；权限/幂等/降级专项测试</td></tr>
+    <tr><td>部署</td><td><code>Docker 多阶段 · Compose · GitHub Actions</code></td><td>中小企业可运维的单机生产形态；迁移与回滚脚本化</td></tr>
+  </table>
+  <div style="height:22px"></div>
+  <div class="adr-grid">
+    <div class="adr"><b><em>ADR-1</em>模块化单体</b><p>否决 <s>微服务</s>：1~5 人团队 + 单机运维，分布式成本>收益；模块边界（Service 接口 + 禁跨模块直连表）保住可拆分性。</p></div>
+    <div class="adr"><b><em>ADR-2</em>FastAPI + Pydantic v2</b><p>否决 <s>Spring Boot / NestJS</s>：AI 生态、异步流式、结构化输出与 API 校验同源。</p></div>
+    <div class="adr"><b><em>ADR-3</em>pgvector 单库</b><p>否决 <s>Milvus/Qdrant 独立部署</s>：知识库 ≤10⁵ chunks 远未到必要规模；单库事务保证业务+审计一致。</p></div>
+    <div class="adr"><b><em>ADR-4</em>自研 Agent 运行时</b><p>否决 <s>LangChain/LangGraph</s>：步骤有限（≤8）、每步必须审计落库，自研约 300 行完全可控可测。</p></div>
+    <div class="adr"><b><em>ADR-5</em>Celery + Redis</b><p>否决 <s>ARQ/Dramatiq/RQ</s>：企业认知度、重试/beat/监控生态最全。</p></div>
+    <div class="adr"><b><em>ADR-6</em>JWT + Refresh 轮换</b><p>否决 <s>服务端 Session</s>：无状态水平扩展；轮换+重用检测是 OWASP 推荐模式。</p></div>
+    <div class="adr"><b><em>ADR-7</em>显式状态机</b><p>否决 <s>Temporal/Camunda</s>：本期仅 3 条简单流；引擎部署与学习成本不成立，P2 Playbook 再评估。</p></div>
+    <div class="adr"><b><em>ADR-8</em>React+Tailwind 自建组件</b><p>否决 <s>AntD/Element Plus</s>：避免传统后台观感；shadcn 风格基础件完全可控。</p></div>
+    <div class="adr"><b><em>ADR-9</em>单机 Compose 生产</b><p>否决 <s>K8s 优先</s>：目标用户运维能力决定形态；K8s manifest 留作 P2。</p></div>
+    <div class="adr"><b><em>ADR-10</em>规则引擎降级</b><p>否决 <s>硬依赖 LLM</s>：安全运营系统不允许因外部 API 故障整体不可用；降级结果显式标记 degraded。</p></div>
+  </div>
+  <div class="footnote">
+    AISOC · Phase 1 架构可视化 · 配套文档：<b>PROJECT_OVERVIEW.md</b>（产品定义）· <b>docs/ARCHITECTURE.md</b>（架构详设）· <b>docs/DATABASE.md</b>（Phase 2 数据库设计）
+    <br>自包含单文件页面 · 无外部依赖 · 可离线打开
+  </div>
+</section>
+
+</main>
+
+<!-- ================= DETAIL PANEL ================= -->
+<aside id="detail">
+  <button class="close" onclick="closeDetail()">✕</button>
+  <div class="kicker" id="d-kicker"></div>
+  <h3 id="d-title"></h3>
+  <div class="desc" id="d-desc"></div>
+  <div class="kv" id="d-kv"></div>
+  <ul class="pts" id="d-pts"></ul>
+</aside>
+
+<script>
+const D = {
+  spa:{k:'CLIENT',t:'React SPA 控制台',d:'桌面优先的现代 SaaS 界面：工作台、告警中心、事件中心、知识库、AI 助手、管理后台。Dark Mode 为默认主题。',kv:[['技术栈','React18+TS+Vite+Tailwind'],['状态','TanStack Query+Zustand'],['权限','RBAC 控制菜单/按钮显隐']],pts:['服务端状态与 UI 状态严格分离','路由级代码分割',' skeletons/空态/错误态全覆盖','键盘可达 + WCAG AA']},
+  sources:{k:'CLIENT',t:'外部告警源',d:'任何能发 HTTP 的设备/系统都可以成为告警源：EDR、SIEM、WAF、云审计、自研检测脚本。平台不绑定厂商。',kv:[['认证','API Key（scope=alerts:write）'],['协议','POST /api/v1/ingest/alerts'],['幂等','(source, external_id) 唯一键']],pts:['内置常见告警格式适配样例','按 Key 限流配额（默认600/min）','无效格式返回 422 与字段级错误']},
+  nginx:{k:'EDGE',t:'Nginx / Caddy 反向代理',d:'生产入口：TLS 终止、HTTP/2、安全响应头（CSP/HSTS）、静态资源服务、IP 级限流第一道闸。',kv:[['TLS','Let\'s Encrypt 自动续期'],['安全头','CSP · HSTS · X-Frame-Options'],['限流','连接级 + 请求级']],pts:['SPA history 路由 fallback','/api 反代至 api 容器','访问日志接入采集']},
+  identity:{k:'APP MODULE',t:'Identity 模块',d:'认证与授权的单一事实来源：用户、角色、权限、API Key、登录保护、token 轮换。',kv:[['认证','JWT 15min + Refresh 7d 轮换'],['密码','argon2id'],['防爆破','5 次锁定 15min + IP 限流']],pts:['Refresh 重用检测→全链撤销','API Key 仅创建时可见明文','登录/登出/失败全审计']},
+  alerts:{k:'APP MODULE',t:'Alerts 模块',d:'告警接入、去重、查询、AI 研判触发与人工确认。系统主闭环的起点与终点。',kv:[['接入','POST /ingest/alerts（API Key）'],['去重','source+external_id 唯一'],['确认','真实/误报/需处置+理由']],pts:['AI 结论只读展示，人确认才改变状态','研判报告步骤可回放','反馈记录用于采纳率统计']},
+  incidents:{k:'APP MODULE',t:'Incidents 模块',d:'告警升级后的实体：事件、处置任务、评论。PICERL 状态机流转，MTTR 统计的数据来源。',kv:[['状态机','new→investigating→…→closed'],['任务','todo/in_progress/blocked/done'],['审计','所有流转记录 actor+理由']],pts:['非终态可重开（强制理由）','任务负责人通知','关闭时自动生成时间线复盘']},
+  knowledge:{k:'APP MODULE',t:'Knowledge 模块',d:'安全 Playbook 与预案文档的管家：上传、解析、切片、向量化、检索。RAG 的数据侧。',kv:[['格式','md/txt/pdf'],['切片','800 token · 15% 重叠'],['存储','pgvector HNSW(cosine)']],pts:['软删除（引用不悬空）','答案强制引用溯源','增量重建索引任务']},
+  analytics:{k:'APP MODULE',t:'Analytics 模块',d:'把闭环价值变成数字：降噪率、AI 采纳率、MTTR、告警趋势、Token 成本。全部来自真实业务表聚合。',kv:[['降噪率','confirmed_false / total'],['采纳率','人机结论一致比例'],['成本','llm_calls 按模型/日聚合']],pts:['看板数据 5 分钟缓存','导出 CSV（P1）','无采样、无假数据']},
+  aicore:{k:'AI KERNEL',t:'AI Core 共享内核',d:'所有 AI 能力的唯一入口：LLMGateway（路由/重试/熔断/结构化/成本）、AgentRunner、工具注册表、Prompt 版本管理。',kv:[['接口','chat/stream/embed'],['结构化','Pydantic Schema 强校验'],['审计','llm_calls + ai_steps 全落库']],pts:['业务代码零感知厂商','降级链：主→备→规则引擎','Prompt 带版本号，评估可复现']},
+  platform:{k:'PLATFORM',t:'Platform 平台服务',d:'横切关注点：审计日志、通知、系统配置、健康检查、幂等键管理。被所有模块共享。',kv:[['审计','append-only audit_logs'],['通知','站内（P1:邮件/Webhook）'],['健康','/healthz /readyz']],pts:['审计不可改删（无代码路径）','配置热加载（模型路由策略）','幂等键 24h 窗口']},
+  worker:{k:'WORKER',t:'Celery Worker',d:'异步执行 AI 研判流水线、知识库索引、通知发送。HTTP 请求即刻返回，重活后台干。',kv:[['并发','concurrency=4（prefork）'],['重试','指数退避 ×3'],['死信','重试耗尽→死信队列+告警']],pts:['任务幂等（重复投递安全）','request_id 全链传播','队列按优先级分离']},
+  beat:{k:'WORKER',t:'Celery Beat 定时器',d:'定时任务调度：超时研判重试、每日备份触发、看板缓存预热、过期数据归档。',kv:[['调度','crontab 表达式'],['任务','超时重试/备份/归档']],pts:['单实例运行（分布式锁保护）','调度历史可查']},
+  retry:{k:'RESILIENCE',t:'重试与死信策略',d:'所有异步任务的重试语义统一：自动重试 3 次（指数退避），耗尽后进死信队列并触发运维通知，绝不静默丢失。',kv:[['退避','0.5s→2s→8s +抖动'],['幂等','任务可安全重放']],pts:['死信可人工重放','失败原因结构化记录']},
+  pg:{k:'DATA',t:'PostgreSQL 16 + pgvector',d:'唯一主存储：业务表（UUIDv7 主键）、JSONB 半结构化告警、向量（HNSW）、审计（append-only）。',kv:[['迁移','Alembic 版本化'],['备份','每日 pg_dump + 30 天'],['向量','HNSW · cosine']],pts:['业务表通用 created_at/updated_at','告警列表复合索引','tenant_id 列预留多租户']},
+  redis:{k:'DATA',t:'Redis 7',d:'四用：Celery broker、API 缓存、限流计数器（滑动窗口）、refresh token 撤销名单与分布式锁。',kv:[['持久化','AOF everysec'],['限流','滑动窗口 Lua 原子']],pts:['key 全部带 TTL','禁止持久化敏感明文']},
+  storage:{k:'DATA',t:'对象存储卷',d:'知识库原始文档与备份文件。MVP 用宿主机卷，可切换 MinIO/S3 兼容存储（配置化）。',kv:[['MVP','本地 Docker volume'],['扩展','S3/MinIO 兼容接口']],pts:['上传类型/大小白名单校验','备份文件加密存储']},
+  llmcloud:{k:'PROVIDER',t:'云端 LLM Provider',d:'OpenAI / Anthropic / Gemini / Qwen / DeepSeek 的统一适配器。协议差异（function calling 格式、流式分帧）在适配器内消化。',kv:[['接入','仅经 Gateway 白名单出网'],['密钥','环境变量注入，加密落库']],pts:['每个适配器独立超时/重试','模型单价配置表驱动成本核算']},
+  ollama:{k:'PROVIDER',t:'Ollama 本地模型',d:'数据不出域选项：研判与嵌入可切本地模型（qwen2.5、bge-m3）。私有化交付的核心卖点。',kv:[['部署','同机可选容器'],['权衡','质量↓ 隐私↑ 成本固定']],pts:['嵌入模型本地化→向量自主可控','GPU 可选']},
+  rulefb:{k:'FALLBACK',t:'规则引擎降级',d:'LLM 全部不可用时的兜底：基于关键词/阈值规则打标，结果标记 degraded=true，前端显式提示"规则降级结果"。',kv:[['触发','熔断+fallback 链耗尽'],['标记','degraded=true']],pts:['系统永不因 LLM 故障瘫痪','降级率是监控指标']},
+  f1:{k:'主闭环',t:'① 告警接入',d:'外部系统经 Webhook/API 推入告警。API Key 鉴权、Pydantic 严格校验、(source, external_id) 幂等去重后落库。',kv:[['响应','202（异步研判）'],['限流','按 Key 配额']],pts:['重复推送安全（去重）','非法格式 422 字段级报错']},
+  f2:{k:'主闭环',t:'② AI 研判（异步）',d:'Celery 拉起 Agent：工具富化（情报/资产/历史/知识库）→ LLM 结构化结论（定级/定性/置信度/证据/建议）。',kv:[['时延目标','P95 ≤ 60s'],['预算','30k tokens/次']],pts:['每步落库可回放','失败重试 + 降级链']},
+  f3:{k:'主闭环',t:'③ 人工确认',d:'Human-in-the-loop：分析师复核 AI 报告，做出最终判断。这是产品设计原则，不是可选开关。',kv:[['动作','真实/误报/需处置'],['必填','确认理由']],pts:['反馈进采纳率统计','确认行为全审计']},
+  f4:{k:'主闭环',t:'④ 事件与处置',d:'真实告警升级为事件，创建处置任务并分派，PICERL 状态机流转直到关闭复盘。',kv:[['状态机','PICERL 六态'],['指标','MTTR']],pts:['任务负责人通知','时间线自动生成']},
+  f5:{k:'主闭环',t:'⑤ 价值度量',d:'降噪率、采纳率、MTTR、Token 成本——用数字证明 AI 的业务价值，并反哺 Prompt 与路由优化。',kv:[['目标','降噪≥40% · 采纳≥75%']],pts:['看板实时可见','成本按模型/日下钻']},
+  api:{k:'参与者',t:'FastAPI 应用',d:'同步路径负责接入与查询（毫秒级响应）；重活全部交给队列。统一鉴权、限流、审计、错误体。',kv:[['接入','/api/v1/ingest/*'],['查询','/api/v1/alerts /incidents /kb']],pts:['请求即返回，不等待 AI','request_id 注入所有响应']},
+  workerbox:{k:'参与者',t:'Celery Worker',d:'triage_alert 流水线的执行者：状态 new→triaging，构建 Agent 运行时，逐步执行并落库。',kv:[['入口','triage_alert(alert_id)'],['状态','triaging→triaged/failed']],pts:['幂等：重复投递安全','每步 ai_steps 落库']},
+  aibox:{k:'参与者',t:'AI Core',d:'Gateway+Agent 的运行时：路由选模型→预算检查→调用→结构化校验→成本落库；Agent 决定调哪些工具、何时收敛。',kv:[['收敛','结论/max8步/预算/超时'],['校验','Pydantic 强制']],pts:['畸形输出绝不入库','全程 trace span']},
+  analyst:{k:'参与者',t:'安全分析师',d:'闭环中的人类决策者：查看 AI 研判报告（步骤可回放），做出确认，必要时升级事件。',kv:[['权限','analyst 角色'],['操作','confirm/escalate/close']],pts:['所有操作审计','键盘优先的交互效率']},
+  g1:{k:'GATEWAY',t:'Model Router 模型路由',d:'按任务类型选择模型档位：研判用强模型（贵但准），嵌入/摘要用廉价模型。策略配置化，换模型零代码。',kv:[['策略','task→model 映射配置'],['健康度','熔断状态参与选择']],pts:'按租户预算自动降档（P1）'},
+  g2:{k:'GATEWAY',t:'Budget Guard 预算闸门',d:'调用前检查 token 预算：单次调用上限与单次研判总预算（默认 30k）。超限中止并标记 budget_exceeded，不产生意外账单。',kv:[['默认','30k tokens/研判'],['标记','budget_exceeded']],pts:['按天/按任务成本看板']},
+  g3:{k:'GATEWAY',t:'Timeout 超时',d:'连接 5s、总响应 60s、研判链路 120s。超时视为失败进入重试/降级，绝不无限等待拖垮 worker。',kv:[['连接','5s'],['总','60s / 研判 120s']]},
+  g4:{k:'GATEWAY',t:'Retry 重试',d:'指数退避（0.5s 基数，×2，+随机抖动）最多 3 次。只对 429/5xx/网络错误重试；4xx 参数错误立即失败——重试注定失败是浪费钱。',kv:[['条件','429/5xx/网络'],['上限','3 次 + 抖动']]},
+  g5:{k:'GATEWAY',t:'Circuit Breaker 熔断',d:'滑动窗口错误率 >50% 熔断 60s，期间请求直接走 fallback。防止对故障 Provider 雪崩式重试烧钱。',kv:[['阈值','错误率 50%'],['冷却','60s 半开探测']]},
+  g6:{k:'GATEWAY',t:'Provider Adapter 适配器',d:'每个厂商一个适配器，实现统一 Provider 协议（chat/stream/embed）。协议差异（function calling、流式分帧、错误码）在适配器内消化。',kv:[['协议','chat/stream/embed'],['测试','FakeLLM 确定性替身']],pts:['新增厂商=新增一个适配器类','业务代码零改动']},
+  g7:{k:'GATEWAY',t:'Structured Output 结构化',d:'Prompt 携带 JSON Schema，响应经 Pydantic 校验；失败自动携带校验错误重试 1 次；仍失败则该次研判失败——畸形输出绝不入库冒充结论。',kv:[['校验','Pydantic v2'],['重试','带错误信息 1 次']],pts:['字段级失败原因可观测']},
+  g8:{k:'GATEWAY',t:'Accounting 成本核算',d:'每次调用记录：模型、tokens（prompt/completion）、单价、折算成本、耗时、状态。按用户/任务/模型/日聚合。',kv:[['存储','llm_calls 表'],['聚合','看板+预算熔断']],pts:['100% 覆盖，无旁路调用']},
+  p1:{k:'PROVIDER',t:'OpenAI',d:'GPT 系列 + text-embedding-3-small。研判主力候选之一。',kv:[['chat','gpt-4.1 / gpt-4.1-mini'],['embed','text-embedding-3-small']]},
+  p2:{k:'PROVIDER',t:'Anthropic',d:'Claude 系列。工具调用协议与 OpenAI 不同（content block），差异在适配器消化。',kv:[['chat','claude-sonnet-4']]},
+  p3:{k:'PROVIDER',t:'Gemini',d:'Google Gemini 系列，长上下文适合大告警上下文。',kv:[['chat','gemini-2.5-pro/flash']]},
+  p4:{k:'PROVIDER',t:'Qwen 通义千问',d:'国内合规与私有化常见选择，OpenAI 兼容接口。',kv:[['chat','qwen-max/plus']]},
+  p5:{k:'PROVIDER',t:'DeepSeek',d:'高性价比，OpenAI 兼容接口，适合大量低风险研判。',kv:[['chat','deepseek-chat']]},
+  p6:{k:'PROVIDER',t:'Ollama',d:'本地开源模型。数据不出域场景的研判与嵌入（bge-m3）主力。',kv:[['chat','qwen2.5 等'],['embed','bge-m3']]},
+  t1:{k:'AGENT TOOL',t:'query_threat_intel',d:'查询本地 IOC 情报库（IP/域名/哈希）：信誉评分、标签、首次/最后出现时间、来源。数据来自平台自维护情报表，可经连接器扩充。',kv:[['输入','ioc 字符串'],['输出','信誉+标签+时间线'],['权限','只读']],pts:['零外呼（不出网）','结果进入证据链 evidence']},
+  t2:{k:'AGENT TOOL',t:'query_asset',d:'查询资产库：IP/主机名的归属部门、重要性等级、操作系统、负责人、暴露面。判断"被打的是不是重要资产"。',kv:[['输入','ip/hostname'],['输出','资产画像'],['权限','只读']]},
+  t3:{k:'AGENT TOOL',t:'search_similar_alerts',d:'检索历史相似告警（结构特征匹配 + 向量相似），返回历史结论分布（如：近 90 天同源告警 82% 判误报）。',kv:[['检索','结构+向量混合'],['输出','结论分布+样本']],pts:['历史结论是最强先验']},
+  t4:{k:'AGENT TOOL',t:'search_knowledge',d:'RAG 检索 Playbook/预案：返回最相关 chunk 及引用位置，供研判引用处置建议的依据。',kv:[['K','Top-6 · 阈值 0.3'],['输出','chunk+引用号']]},
+  t5:{k:'AGENT TOOL',t:'list_alert_context',d:'聚合同一攻击战役的关联告警：同主机/同攻击源/同时间窗的告警列表，避免单条误判。',kv:[['关联键','src_ip/dst_host/时间窗'],['输出','关联告警列表']]},
+  t6:{k:'AGENT TOOL',t:'propose_action',d:'生成建议处置（封禁 IP、隔离主机等）——只落库为"待批准建议"，任何执行动作都必须人工批准。Agent 无写权限。',kv:[['输出','建议+理由'],['执行','人工批准（P1 自动化需双重审批）']]},
+  r1:{k:'RAG',t:'Ingest 切片',d:'文档上传（md/txt/pdf）→ 解析 → 800 token 切片、15% 重叠，metadata 保留标题层级路径，保证引用可定位。',kv:[['大小','800 token'],['重叠','15%']]},
+  r2:{k:'RAG',t:'Embed 向量化',d:'经 Gateway.embed() 批量向量化，写入 pgvector（HNSW, cosine）。与业务同库，事务一致。',kv:[['索引','HNSW cosine'],['模型','可配置（云/本地）']]},
+  r3:{k:'RAG',t:'Retrieve 检索',d:'Top-K=6，相似度低于 0.3 丢弃（宁缺毋滥，避免噪声干扰研判）。返回 chunk + 文档位置。',kv:[['K','6'],['阈值','0.3']]},
+  r4:{k:'RAG',t:'Grounded Answer 溯源',d:'生成结论必须携带 [n] 引用编号，前端点击可跳转原文高亮。无引用的结论在 UI 上显式标注"未溯源"。',kv:[['引用','强制'],['UI','可点击溯源']]},
+  's-new':{note:'新告警入库后的初始态。幂等去重通过，等待 Celery 消费进入研判。',in:'ingest API 写入',out:'triage_alert 任务被消费 → triaging'},
+  's-triaging':{note:'AI 研判进行中：Agent 工具富化 + LLM 推理。此态告警锁定（不接受并发研判），超时（120s）或重试耗尽 → triage_failed。',in:'worker 消费任务',out:'结论产出 → triaged；失败/超时 → triage_failed'},
+  's-triaged':{note:'AI 结论已出（含定级/置信度/证据/建议），等待分析师确认。degraded 标记表示规则降级结果。超 72h 未确认升级提醒。',in:'研判完成',out:'confirmed_true / confirmed_false'},
+  's-ct':{note:'分析师确认告警为真实安全事件。必填确认理由，与 AI 结论对比进采纳率统计。',in:'analyst confirm',out:'创建/关联事件 → incident_created'},
+  's-incident':{note:'已升级为事件，进入事件生命周期处置。告警与事件多对多关联。',in:'escalate 动作',out:'事件闭环后本态终局'},
+  's-cf':{note:'确认为误报。这是"降噪率"指标的分子来源。误报模式可用于优化规则与 Prompt。',in:'analyst confirm(false)',out:'终态（可被关联告警重新激活）'},
+  's-failed':{note:'研判失败（LLM 不可用且降级失败 / 结构化校验失败 / 预算超限）。失败原因结构化记录，可一键重试。',in:'pipeline 失败',out:'人工/定时重试 → triaging'},
+  'i-new':{note:'事件创建（通常由告警升级），待认领负责人。',in:'escalate',out:'指派负责人 → investigating'},
+  'i-inv':{note:'调查中：关联告警、收集证据、执行排查任务。',in:'负责人开始处理',out:'已控制影响 → contained'},
+  'i-con':{note:'影响已被遏制（如已封禁、已隔离），但威胁尚未根除。',in:'遏制动作完成',out:'根除中 → eradicated'},
+  'i-era':{note:'威胁已根除（清除持久化、修复漏洞）。',in:'根除完成',out:'恢复验证 → recovered'},
+  'i-rec':{note:'业务恢复并验证正常，准备复盘。',in:'恢复确认',out:'复盘完成 → closed'},
+  'i-clo':{note:'终态。关闭时自动生成完整时间线（告警→研判→确认→处置），MTTR 定格。',in:'复盘完成',out:'终态（只能通过 reopened 重新进入）'},
+  'i-re':{note:'重开：closed 之外的任何状态可重开，但必须填写理由并审计。典型场景：同类攻击复发。',in:'reopen(理由必填)',out:'→ investigating'},
+  't-todo':{note:'任务已创建待认领/待开始。',in:'事件下创建任务',out:'负责人开始 → in_progress'},
+  't-doing':{note:'执行中。超时未完成提醒负责人。',in:'开始执行',out:'done / blocked'},
+  't-done':{note:'完成，记录产出说明。',in:'完成确认',out:'终态'},
+  't-blocked':{note:'阻塞（必须填写原因），例如等待防火墙变更窗口。',in:'遇到阻塞',out:'解除 → in_progress；放弃 → cancelled'},
+  't-cancel':{note:'取消，必填原因，审计留痕。',in:'cancel(理由必填)',out:'终态'},
+  'd-nginx':{k:'CONTAINER',t:'nginx',d:'入口容器：TLS、HTTP/2、安全头、SPA 静态资源、/api 反代、连接级限流。',kv:[['镜像','nginx:alpine'],['端口','443 对外，内部全网络']]},
+  'd-api':{k:'CONTAINER',t:'api（×2 副本）',d:'uvicorn 容器，2 worker。无状态可水平扩。暴露 /healthz /readyz /metrics。',kv:[['镜像','多阶段 Python 3.12-slim'],['资源','limits 1c/1g']]},
+  'd-worker':{k:'CONTAINER',t:'worker',d:'Celery worker，prefork 并发 4，执行 AI 流水线。与 api 共享代码镜像（不同入口命令）。',kv:[['并发','4'],['重试','退避×3→死信']]},
+  'd-beat':{k:'CONTAINER',t:'beat',d:'Celery beat 定时调度器，单实例，分布式锁防重复。',kv:[['调度','crontab']]},
+  'd-pg':{k:'CONTAINER',t:'postgres:16',d:'唯一主存储。数据卷 + 每日 pg_dump 备份 sidecar + WAL。pgvector 扩展预装镜像。',kv:[['扩展','pgvector'],['备份','每日+保留30天']]},
+  'd-redis':{k:'CONTAINER',t:'redis:7',d:'broker/cache/lock/限流。AOF 持久化，maxmemory 策略 allkeys 之外的专用实例隔离。',kv:[['持久化','AOF everysec']]},
+  'd-ollama':{k:'CONTAINER',t:'ollama（可选）',d:'本地模型运行时，私有化选项。无 GPU 也可运行小模型完成嵌入。',kv:[['模型','qwen2.5 / bge-m3']]},
+  'd-monitor':{k:'CONTAINER',t:'prometheus + grafana',d:'指标抓取与可视化：API 时延、AI 成本、队列深度。预置 dashboard JSON 随仓库交付，告警规则（错误率/队列堆积/成本）。',kv:[['抓取','15s'],['告警','规则文件交付']]},
+  'd-backup':{k:'CONTAINER',t:'backup sidecar',d:'每日定时 pg_dump → 加密 → 对象存储，保留 30 天。恢复脚本 + 演练文档交付。',kv:[['频率','每日 03:00'],['保留','30 天']]},
+  c1:{k:'CI/CD',t:'01 Lint & Type',d:'后端 ruff + mypy strict；前端 eslint + tsc --noEmit。风格与类型问题在最便宜的阶段拦截。',kv:[['触发','push/PR'],['失败','阻断流水线']]},
+  c2:{k:'CI/CD',t:'02 后端测试',d:'pytest：单测 + 集成（GitHub Actions service 容器跑真实 PG/Redis）+ API 契约 + 权限专项 + 幂等专项。core 模块覆盖率门禁 80%。',kv:[['覆盖率','core ≥ 80%'],['环境','真实 PG/Redis']]},
+  c3:{k:'CI/CD',t:'03 前端构建',d:'vitest 单测 + vite build + 产物体积预算检查（超预算失败，防依赖腐化）。',kv:[['门禁','体积预算']]},
+  c4:{k:'CI/CD',t:'04 AI 评估',d:'黄金数据集（带 ground truth 的告警样本）回归：结构化输出合法率 100%、定级准确率不低于基线。评估不达标不放行——AI 改动和代码改动同一质量标准。',kv:[['数据集','标注样本集'],['门禁','合法率100% · 准确率≥基线']]},
+  c5:{k:'CI/CD',t:'05 构建与扫描',d:'多阶段 Docker 构建（sha tag 不可变）+ trivy 镜像扫描（HIGH 拒绝）+ pip-audit / npm audit 供应链检查。',kv:[['tag','git-sha 不可变'],['扫描','trivy+pip-audit']]},
+  c6:{k:'CI/CD',t:'06 部署 Staging',d:'alembic upgrade head → 滚动更新 → /readyz 通过 → Playwright E2E 冒烟（登录→告警研判→确认→事件）。',kv:[['冒烟','E2E 关键路径']]},
+  c7:{k:'CI/CD',t:'07 人工审批',d:'GitHub Environment 保护规则，prod 发布需手动批准。审批记录留痕。',kv:[['机制','Environment 保护']]},
+  c8:{k:'CI/CD',t:'08 生产发布/回滚',d:'发布：切 tag → 迁移 → 健康检查；回滚：切回上一 tag + alembic downgrade，一键脚本，5 分钟内完成。',kv:[['回滚','≤5min 脚本化']]}
+};
+function show(id){
+  const d=D[id]; if(!d) return;
+  if(d.note!==undefined){ // state machine node -> inline note
+    return;
+  }
+  document.getElementById('d-kicker').textContent=d.k||'INFO';
+  document.getElementById('d-title').textContent=d.t;
+  document.getElementById('d-desc').textContent=d.d||'';
+  const kv=document.getElementById('d-kv'); kv.innerHTML='';
+  (d.kv||[]).forEach(([k,v])=>{const r=document.createElement('div');r.innerHTML=`<b>${k}</b><span>${v}</span>`;kv.appendChild(r);});
+  const ul=document.getElementById('d-pts'); ul.innerHTML='';
+  (Array.isArray(d.pts)?d.pts:d.pts?[d.pts]:[]).forEach(p=>{const li=document.createElement('li');li.innerHTML=p;ul.appendChild(li);});
+  document.getElementById('detail').classList.add('open');
+}
+function closeDetail(){document.getElementById('detail').classList.remove('open');
+  document.querySelectorAll('.sel').forEach(e=>e.classList.remove('sel'));}
+
+// tabs
+function activateView(id){
+  const b=document.querySelector('#tabs button[data-v="'+id+'"]'); if(!b) return;
+  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('active',x===b));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));
+}
+document.getElementById('tabs').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  activateView(b.dataset.v); history.replaceState(null,'','#'+b.dataset.v);
+  closeDetail();
+});
+activateView(/^#v[1-6]$/.test(location.hash) ? location.hash.slice(1) : 'v1');
+// generic node clicks
+document.addEventListener('click',e=>{
+  const n=e.target.closest('[data-d]'); if(!n) return;
+  const id=n.dataset.d, d=D[id]; if(!d) return;
+  document.querySelectorAll('.sel').forEach(x=>x.classList.remove('sel'));
+  n.classList.add('sel');
+  if(d.note!==undefined){ // inline state note
+    const map={'s-':'note1','i-':'note2','t-':'note3'};
+    const key=Object.keys(map).find(k=>id.startsWith(k));
+    if(key){document.getElementById(map[key]).innerHTML=`<b style="color:var(--txt)">${d.in||''}</b> → ${d.note}<br><b style="color:var(--txt)">流出：</b>${d.out||''}`;}
+    n.classList.add('sel'); return;
+  }
+  show(id);
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail();});
+</script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+[
+  {
+    "input": {
+      "title": "SSH brute force from 45.155.205.233 followed by successful login",
+      "description": "142 failed password attempts from known scanner IP, then successful auth for deploy account",
+      "alert_type": "brute_force",
+      "severity": "critical",
+      "src_ip": "45.155.205.233"
+    },
+    "expected": {
+      "classification": "true_positive",
+      "severity": "critical",
+      "confidence": 90,
+      "reasoning_hint": "Known-bad IP (reputation 92) succeeded after mass failures: active compromise."
+    }
+  },
+  {
+    "input": {
+      "title": "Repeated failed logins for service account from 10.20.30.40",
+      "description": " Monitoring probe with stale credentials, 20 failures every 5 minutes",
+      "alert_type": "brute_force",
+      "severity": "low",
+      "src_ip": "10.20.30.40"
+    },
+    "expected": {
+      "classification": "false_positive",
+      "severity": "low",
+      "confidence": 80,
+      "reasoning_hint": "Internal monitoring host with stale credentials; benign pattern."
+    }
+  },
+  {
+    "input": {
+      "title": "SQL injection pattern blocked by WAF on /api/search",
+      "description": "UNION SELECT payload blocked, no backend error observed",
+      "alert_type": "web_attack",
+      "severity": "medium",
+      "src_ip": "203.0.113.10"
+    },
+    "expected": {
+      "classification": "suspicious",
+      "severity": "medium",
+      "confidence": 60,
+      "reasoning_hint": "Blocked probing indicates targeting; verify no bypass attempts."
+    }
+  },
+  {
+    "input": {
+      "title": "Impossible travel: user jsmith logged in from two countries",
+      "description": "Login from CN 09:00, login from DE 09:40",
+      "alert_type": "account_compromise",
+      "severity": "high",
+      "src_ip": "198.51.100.7"
+    },
+    "expected": {
+      "classification": "true_positive",
+      "severity": "high",
+      "confidence": 75,
+      "reasoning_hint": "Geographically impossible reuse indicates credential theft."
+    }
+  },
+  {
+    "input": {
+      "title": "Antivirus quarantined malware.exe on workstation",
+      "description": "EICAR test file executed during AV self-test",
+      "alert_type": "malware",
+      "severity": "low",
+      "src_ip": "10.20.30.40"
+    },
+    "expected": {
+      "classification": "false_positive",
+      "severity": "low",
+      "confidence": 85,
+      "reasoning_hint": "EICAR test artifact during scheduled AV self-test."
+    }
+  },
+  {
+    "input": {
+      "title": "Outbound traffic to known C2 domain on fin-db-01",
+      "description": "Periodic beacons every 60s to tencozirik[.]top, TLS on 443",
+      "alert_type": "malware",
+      "severity": "critical",
+      "src_ip": "10.20.30.40"
+    },
+    "expected": {
+      "classification": "true_positive",
+      "severity": "critical",
+      "confidence": 95,
+      "reasoning_hint": "Beaconing from critical asset: likely ransomware pre-stage."
+    }
+  },
+  {
+    "input": {
+      "title": "Port scan detected from single host",
+      "description": "SYN scan across 1000 ports, no follow-up exploitation",
+      "alert_type": "reconnaissance",
+      "severity": "low",
+      "src_ip": "192.0.2.50"
+    },
+    "expected": {
+      "classification": "needs_investigation",
+      "severity": "low",
+      "confidence": 40,
+      "reasoning_hint": "Scan alone is inconclusive; correlate with asset exposure."
+    }
+  },
+  {
+    "input": {
+      "title": "Privilege escalation to Domain Admin on DC",
+      "description": "New DA group membership for svc-backup outside change window",
+      "alert_type": "lateral_movement",
+      "severity": "critical",
+      "src_ip": "10.20.30.40"
+    },
+    "expected": {
+      "classification": "true_positive",
+      "severity": "critical",
+      "confidence": 88,
+      "reasoning_hint": "Unauthorized DA escalation on DC: domain compromise likely."
+    }
+  },
+  {
+    "input": {
+      "title": "User reported phishing email, no click detected",
+      "description": "Credential phishing reported and deleted, gateway shows no click",
+      "alert_type": "phishing",
+      "severity": "low",
+      "src_ip": null
+    },
+    "expected": {
+      "classification": "false_positive",
+      "severity": "low",
+      "confidence": 80,
+      "reasoning_hint": "Reported without interaction; standard user awareness."
+    }
+  },
+  {
+    "input": {
+      "title": "Data exfiltration: 4GB upload from fin-db-01 to personal cloud",
+      "description": "Sustained upload outside business hours to fileshare provider",
+      "alert_type": "data_exfiltration",
+      "severity": "critical",
+      "src_ip": "10.20.30.40"
+    },
+    "expected": {
+      "classification": "true_positive",
+      "severity": "critical",
+      "confidence": 85,
+      "reasoning_hint": "Large off-hours egress from critical asset: data theft pattern."
+    }
+  }
+]

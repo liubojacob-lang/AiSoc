@@ -1,0 +1,109 @@
+name: aisoc
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: aisoc
+      POSTGRES_USER: aisoc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aisoc -d aisoc"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    environment: &backend_env
+      ENV: prod
+      DATABASE_URL: postgresql+psycopg://aisoc:${POSTGRES_PASSWORD}@db:5432/aisoc
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      FERNET_KEY: ${FERNET_KEY:?set FERNET_KEY}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?set BOOTSTRAP_ADMIN_PASSWORD}
+      CORS_ORIGINS: '["http://localhost:8080"]'
+      # LLM 路由示例：研判走主力模型，嵌入走廉价模型；未配置 key 的 provider 会在启动时报错
+      LLM_ROUTING: ${LLM_ROUTING:-'{"triage":["deepseek:deepseek-chat"],"embed":["deepseek:deepseek-chat"]}'}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    command: >
+      sh -c "python -m alembic upgrade head &&
+             python -m app.db.seed &&
+             python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 1g }
+
+  worker:
+    build: ./backend
+    environment: *backend_env
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    command: python -m celery -A app.workers.celery_app.celery_app worker -Q default,triage,kb -c 4 --loglevel=INFO
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 1g }
+
+  beat:
+    build: ./backend
+    environment: *backend_env
+    depends_on:
+      redis: { condition: service_healthy }
+    command: python -m celery -A app.workers.celery_app.celery_app beat --loglevel=INFO
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  backup:
+    image: pgvector/pgvector:pg16
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c 'while true; do
+        ts=$$(date +%Y%m%d_%H%M%S);
+        pg_dump -h db -U aisoc -d aisoc -F c -f /backups/aisoc_$$ts.dump && echo "backup $$ts ok";
+        find /backups -name "*.dump" -mtime +30 -delete;
+        sleep 86400;
+      done'
+    depends_on:
+      db: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

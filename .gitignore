@@ -1,0 +1,31 @@
+# --- secrets & env（永不入库） ---
+.env
+.env.*
+!.env.example
+
+# --- python ---
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+backend/aisoc.db
+backend/_test_aisoc.db
+backend/_apply_tmp.db
+backend/_autogen_tmp.db
+
+# --- node ---
+node_modules/
+frontend/dist/
+
+# --- runtime data & artifacts ---
+data/knowledge/
+backups/
+.tmp/
+*.log
+
+# --- 非本项目内容 / 运行时数据 ---
+ECC/
+backend/data/
