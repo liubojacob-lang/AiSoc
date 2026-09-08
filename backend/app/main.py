@@ -14,11 +14,13 @@ from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger, request_id_var
 from app.core.metrics import HTTP_LATENCY
 from app.db.session import get_sessionmaker
+from app.modules.ai.router import router as ai_router
 from app.modules.alerts.router import router as alerts_router
 from app.modules.analytics.router import router as analytics_router
 from app.modules.identity.router import router as identity_router
 from app.modules.incidents.router import router as incidents_router
 from app.modules.knowledge.router import router as knowledge_router
+from app.platform.router import router as notifications_router
 
 log = get_logger("main")
 
@@ -95,6 +97,8 @@ def create_app() -> FastAPI:
         (incidents_router, "/incidents"),
         (knowledge_router, "/kb"),
         (analytics_router, "/analytics"),
+        (ai_router, "/ai"),
+        (notifications_router, "/notifications"),
     ]:
         app.include_router(
             router,
@@ -106,6 +110,8 @@ def create_app() -> FastAPI:
                     "incidents": "incidents",
                     "kb": "knowledge",
                     "analytics": "analytics",
+                    "ai": "ai",
+                    "notifications": "notifications",
                 }[prefix.strip("/")],
             ],
         )

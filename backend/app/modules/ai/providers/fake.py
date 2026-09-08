@@ -49,9 +49,50 @@ class FakeProvider(LLMProvider):
         if queue:
             content = queue.pop(0) if len(queue) > 1 else queue[0]
         else:
-            content = self._heuristic_verdict_json(messages)
-        prompt = "\n".join(m["content"] for m in messages)
-        return content, self._tokens(prompt), self._tokens(content)
+            prompt = "\n".join(m["content"] for m in messages)
+            if '"direct_answer"' in prompt:
+                # CopilotAction schema detected → copilot-style heuristic
+                content = self._heuristic_copilot_json(prompt)
+            else:
+                content = self._heuristic_verdict_json(messages)
+        prompt_all = "\n".join(m["content"] for m in messages)
+        return content, self._tokens(prompt_all), self._tokens(content)
+
+    def _heuristic_copilot_json(self, prompt: str) -> str:
+        """CopilotAction heuristic: route data questions to search_alerts."""
+        import json as _json
+
+        # 回答轮：观察结果已在上下文中 → 产出自然语言摘要（而非再返回 JSON）
+        obs_m = re.search(r"TOOL (\w+) RESULT: (\{.*\})", prompt, re.DOTALL)
+        if obs_m:
+            try:
+                payload = _json.loads(obs_m.group(2))
+            except _json.JSONDecodeError:
+                payload = {}
+            if obs_m.group(1) == "search_alerts" and "alerts" in payload:
+                n = payload.get("matched", 0)
+                lines = [
+                    f"- {a['title']}（{a['severity']}/{a['status']}，{a['occurred_at']}）"
+                    for a in payload.get("alerts", [])[:5]
+                ]
+                body = "\n".join(lines) if lines else "（无匹配告警）"
+                return f"当前查询到 {n} 条告警，最近的有：\n{body}\n（内置确定性模型的摘要；接入真实 LLM 后为更自然的分析。）"
+            return "（内置确定性模型）已查询到相关数据。"
+
+        question_m = re.search(r"USER QUESTION:\s*(.+)", prompt)
+        question = question_m.group(1).strip() if question_m else ""
+        data_kw = ("告警", "警报", "alert", "高危", "事件", "incident", "统计", "多少", "how many")
+        needs_data = any(k in question.lower() for k in data_kw)
+        if needs_data:
+            return _json.dumps(
+                {"thought": "fake heuristic: data question → search alerts", "tool": "search_alerts", "args": {}},
+                ensure_ascii=False,
+            )
+        return _json.dumps(
+            {"thought": "fake heuristic: direct", "tool": None, "args": {},
+             "direct_answer": "（内置确定性模型）你好！我是 AISOC 助手。接入真实 LLM Key 后，我可以基于工具数据回答告警、事件、统计与知识库问题。"},
+            ensure_ascii=False,
+        )
 
     def _heuristic_verdict_json(self, messages: list[dict[str, str]]) -> str:
         """Keyword-heuristic single-step finalize. Mirrors the rule fallback."""

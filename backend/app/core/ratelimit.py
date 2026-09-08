@@ -71,7 +71,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         limits = [("global", settings.rl_global_per_min, 60)]
         if path.endswith("/auth/login"):
             limits.append(("login", settings.rl_login_per_min, 60))
-        if "/retry-triage" in path or path.endswith("/ask"):
+        if "/retry-triage" in path or path.endswith("/ask") or path.endswith("/ai/chat"):
             limits.append(("ai", settings.rl_ai_per_hour, 3600))
         return limits
 

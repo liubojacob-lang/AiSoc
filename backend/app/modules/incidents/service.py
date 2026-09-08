@@ -40,6 +40,19 @@ async def create_incident(
                 IncidentAlert(incident_id=incident.id, alert_id=alert.id, linked_by=opened_by)
             )
     await session.flush()
+
+    # 新事件通知（in-app + 可选 webhook），失败不影响创建
+    try:
+        from app.platform.notify import notify_incident_created
+
+        await notify_incident_created(
+            session, tenant_id, incident_id=incident.id,
+            title=incident.title, severity=incident.severity, opened_by=opened_by,
+        )
+    except Exception as e:  # noqa: BLE001
+        from app.core.logging import get_logger
+
+        get_logger("incidents").warning("notify_failed", incident_id=str(incident.id), error=str(e))
     return incident
 
 
@@ -109,16 +122,27 @@ async def transition(
         )
     if target == IncidentStatus.CLOSED and not close_summary:
         raise ValidationFailed("close_summary is required when closing an incident")
-    if target == IncidentStatus.REOPENED:
-        incident.reopened_count += 1
 
-    incident.status = target
-    if target == IncidentStatus.CLOSED:
-        incident.closed_at = utcnow()
-        incident.close_summary = close_summary
-    else:
-        incident.closed_at = None
-    await session.flush()
+    # CAS：仅当状态仍是读取值时才迁移，防并发双重流转
+    from sqlalchemy import update
+
+    res = await session.execute(
+        update(Incident)
+        .where(Incident.id == incident.id, Incident.status == current)
+        .values(
+            status=target,
+            updated_at=utcnow(),
+            closed_at=utcnow() if target == IncidentStatus.CLOSED else None,
+            close_summary=close_summary if target == IncidentStatus.CLOSED else None,
+            reopened_count=incident.reopened_count + (1 if target == IncidentStatus.REOPENED else 0),
+        )
+    )
+    if res.rowcount == 0:
+        raise Conflict(
+            "incident.concurrent_modification",
+            f"incident state changed concurrently (was {current})",
+        )
+    await session.refresh(incident)
     return incident
 
 
@@ -177,11 +201,23 @@ async def transition_task(
         raise Conflict("task.illegal_transition", f"cannot move task from {current} to {target}")
     if target in (TaskStatus.BLOCKED, TaskStatus.CANCELLED) and not reason:
         raise ValidationFailed(f"reason is required when moving a task to {target}")
-    task.status = target
-    task.blocked_reason = reason if target == TaskStatus.BLOCKED else None
-    if target == TaskStatus.DONE:
-        task.completed_at = utcnow()
-    await session.flush()
+
+    # CAS：防并发双重流转（与告警/事件一致）
+    from sqlalchemy import update
+
+    res = await session.execute(
+        update(Task)
+        .where(Task.id == task.id, Task.status == current)
+        .values(
+            status=target,
+            updated_at=utcnow(),
+            blocked_reason=reason if target == TaskStatus.BLOCKED else None,
+            completed_at=utcnow() if target == TaskStatus.DONE else None,
+        )
+    )
+    if res.rowcount == 0:
+        raise Conflict("task.concurrent_modification", f"task state changed concurrently (was {current})")
+    await session.refresh(task)
     return task
 
 

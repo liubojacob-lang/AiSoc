@@ -423,6 +423,21 @@ async def run_triage(
     await transition(session, alert, AlertStatus.TRIAGED)
     alert.degraded = degraded
     await session.commit()
+
+    # 研判完成通知（in-app + 可选 webhook），失败不影响主流程
+    try:
+        from app.platform.notify import notify_triage_result
+
+        await notify_triage_result(
+            session, tenant_id, alert_id=alert.id, alert_title=alert.title,
+            classification=verdict.classification, severity=verdict.severity,
+            triggered_by=triggered_by,
+        )
+        await session.commit()
+    except Exception as e:  # noqa: BLE001
+        from app.core.logging import get_logger
+
+        get_logger("alerts").warning("notify_failed", alert_id=str(alert_id), error=str(e))
     return alert
 
 

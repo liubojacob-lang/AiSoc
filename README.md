@@ -69,7 +69,8 @@ npm install && npm run dev          # http://localhost:5173  admin@aisoc.dev / a
 | RAG 知识库 | Markdown 感知切片（800 tok/15% 重叠）、pgvector HNSW（SQLite 开发态自动降级为暴力余弦）、强制引用溯源、无证据不下结论 |
 | 人工确认 | Human-in-the-loop 确认（真实/误报+理由）→ 反馈表 → AI 采纳率统计 |
 | 事件中心 | PICERL 状态机（非法迁移拒绝）、任务、评论、MTTR 统计 |
-| 平台 | RBAC（admin/analyst/viewer + 权限矩阵）、JWT 双令牌轮换+重用检测、argon2id、账号锁定、Redis 滑动窗口限流、append-only 审计日志、Prometheus 指标、request_id 全链路结构化日志、健康检查 |
+| 平台 | RBAC（admin/analyst/viewer + 权限矩阵）、JWT 双令牌轮换+重用检测、argon2id、账号锁定、Redis 滑动窗口限流（Redis 服务端时钟）、append-only 审计日志、站内通知 + Webhook 事件推送、Prometheus 指标 + Grafana 看板 + 告警规则、request_id 全链路结构化日志、健康检查 |
+| SOC 助手 | 自然语言查询告警/事件/统计/知识库：规划→工具→有据回答，带引用卡片与会话历史（`/assistant`） |
 | 看板 | 告警量/降噪率/采纳率/MTTR/LLM 成本，全部真实表聚合 |
 
 **交互式架构可视化：打开根目录 `architecture.html`**（自包含单文件，含系统模块/数据流/AI 调用链/状态机/部署拓扑/ADR）。
@@ -84,7 +85,8 @@ ruff check app tests && ruff format --check app tests   # lint 全绿
 pytest tests/ -q                                         # 23 个测试全通过
 ```
 
-- **闭环测试**：接入→研判→报告回放→确认→采纳率统计，端到端断言
+- **闭环测试**：接入→研判→报告回放→确认→采纳率统计，端到端断言（30 项后端测试）
+- **E2E**：`tests_e2e/`（Playwright + 系统 Chrome，对运行中的 Docker 栈执行；`E2E_BASE_URL=http://localhost:8080 pytest tests_e2e/`）
 - **AI 评估门禁**：`tests/golden/triage_dataset.json`（10 条带 ground truth 的标注告警），结构化合法率 100%、证据强制、定级一致性进 CI 门禁
 - **安全测试**：RBAC 越权、账号锁定、Refresh 重用检测、API Key scope
 - **迁移验证**：Alembic upgrade→downgrade→upgrade 往返

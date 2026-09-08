@@ -1,0 +1,41 @@
+groups:
+  - name: aisoc
+    rules:
+      - alert: ApiErrorRateHigh
+        expr: |
+          sum(rate(aisoc_http_request_seconds_count{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(aisoc_http_request_seconds_count[5m])), 0.001) > 0.02
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "API 5xx 比例 >2% 持续 10 分钟"
+
+      - alert: TriageDegradedSpike
+        expr: |
+          increase(aisoc_triage_runs_total{status="degraded"}[30m])
+            / clamp_min(increase(aisoc_triage_runs_total[30m]), 1) > 0.3
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: "研判降级占比 >30%（LLM 链路可能异常）"
+
+      - alert: TriageFailureSpike
+        expr: increase(aisoc_triage_runs_total{status="failed"}[30m]) > 5
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: "30 分钟内研判失败 >5 次"
+
+      - alert: AiCostSpike
+        expr: sum(increase(aisoc_ai_cost_usd_total[1h])) > 5 * (sum(increase(aisoc_ai_cost_usd_total[1d] offset 1d)) / 24 + 0.01)
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: "LLM 小时成本突增（>5× 昨日小时均值）"
+
+      - alert: CeleryQueueBacklog
+        expr: aisoc_celery_queue_depth{queue="triage"} > 100
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "triage 队列堆积 >100 持续 15 分钟"
