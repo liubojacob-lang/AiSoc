@@ -30,7 +30,8 @@ async def dispatch_triage(
             request_id,
         )
     else:
-        from app.workers.celery_app import triage_alert_task
+        # 任务对象定义在 tasks 模块（celery_app 仅提供 app 实例）
+        from app.workers.tasks import triage_alert_task
 
         triage_alert_task.delay(
             str(alert_id),
@@ -46,6 +47,14 @@ async def dispatch_index_document(document_id: uuid.UUID, tenant_id: uuid.UUID) 
     if settings.task_inline:
         await index_document_body(str(document_id), str(tenant_id))
     else:
-        from app.workers.celery_app import index_document_task
+        from app.workers.tasks import index_document_task
 
         index_document_task.delay(str(document_id), str(tenant_id))
+
+
+def _celery_tasks_registered() -> bool:
+    """回归守卫：Celery 模式下任务对象必须可解析（Docker 首跑曾因
+    从错误模块导入而在 ingest 后 500）。"""
+    from app.workers import tasks as t
+
+    return t.triage_alert_task is not None and t.index_document_task is not None

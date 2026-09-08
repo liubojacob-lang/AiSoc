@@ -84,10 +84,25 @@ docker compose exec db pg_restore -U aisoc -d aisoc_clean --no-owner /backups/ai
 
 ## 8. 故障排查（Troubleshooting）
 
+> 以下前四条来自 2026-09-08 Docker Compose 单机首跑的**实际踩坑记录**，均已修复或写入运维流程。
+
 | 现象 | 排查 |
 |---|---|
 | api 启动即退出 | `docker compose logs api`——prod 缺 JWT_SECRET/FERNET_KEY 会 fail-fast；LLM_ROUTING 引用未配置 Key 的 provider 亦会拒绝启动 |
+| **迁移报 `type "vector" does not exist`** | pgvector 扩展必须在任何 vector 列 DDL 之前创建（迁移 0001 已修复顺序）；若使用自建 PG 需手动 `CREATE EXTENSION vector` |
+| **api 重建后 nginx 全部 502** | nginx 启动时缓存 `api` 的容器 IP；`docker compose up -d api` 重建后需 `docker compose restart frontend`。已写入发布流程：**凡重建 api 容器，随后重启 frontend** |
+| **限流窗口"卡死"不排空** | 历史原因有二：① 客户端时钟漂移（WSL2 常见）——现已改用 Redis 服务端 `TIME` 作为时钟源；② 窗口单位二次换算（客户端传 ms × Lua 再 ×1000 = 16.7h）——已修复为传秒。诊断命令：`redis-cli TTL rl:login:<id>` 应 ≈60 而非 60000 |
+| Docker Hub 拉取超时 | 国内网络配置镜像加速：`~/.docker/daemon.json` 的 `registry-mirrors`（daocloud/1panel/1ms 等），重启 Docker Desktop 生效 |
 | 告警停在 triaging | 看 worker 日志与 `ai_runs.error`；LLM 超时（默认 120s）或预算超限；超时后告警转 `triage_failed` 可重试 |
 | 研判全部 degraded | fallback 链耗尽：检查 Provider Key/额度/网络；规则兜底已保证功能可用，前端有明示标记 |
 | refresh 登录失效 | refresh cookie path 限定 `/api/v1/auth`；反向代理不得改写 Cookie；`SameSite=Strict` 需要前后端同站（或调整 CORS/域名规划） |
 | 队列堆积 | `aisoc_celery_queue_depth` 指标；优先扩 worker 副本（无状态），其次降低 LLM_ROUTING 档位 |
+
+## 9. 首跑验证记录（2026-09-08，单机 Docker Compose）
+
+以下路径已在真实环境验证通过：PG 迁移（含 pgvector 扩展 + HNSW 索引，30 表）、
+`/readyz`（db+redis）、登录与 API Key 签发、**真实 Celery/Redis 队列模式下的
+告警接入→异步研判闭环**（worker received→succeeded 0.73s→告警 triaged）、
+llm_calls 成本记账落 PG、`/metrics` 指标端点、知识库容器内上传/索引/RAG 问答、
+备份 sidecar 首次备份产出 `aisoc_*.dump`、限流「5 放行→429→60s 排空恢复」三段行为。
+尚未验证：真实 LLM Provider（见第一梯队第 2 项）、TLS 证书签发、跨主机部署。

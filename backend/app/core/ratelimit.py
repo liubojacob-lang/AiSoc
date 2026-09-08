@@ -8,8 +8,6 @@ line. The tradeoff is documented in the completion report.
 
 from __future__ import annotations
 
-import time
-
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -20,14 +18,17 @@ from app.core.logging import get_logger
 log = get_logger("ratelimit")
 
 _lua_sliding = """
+-- 时钟源用 Redis 服务端 TIME：免疫客户端（尤其 WSL2 VM）时钟漂移，
+-- 漂移曾导致滑动窗口无法排空、限流卡死（Docker 首跑实测）。
+local t = redis.call('TIME')
+local now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
 local key = KEYS[1]
-local now = tonumber(ARGV[1])
-local window = tonumber(ARGV[2])
-local limit = tonumber(ARGV[3])
+local window = tonumber(ARGV[1])
+local limit = tonumber(ARGV[2])
 redis.call('ZREMRANGEBYSCORE', key, 0, now - window * 1000)
 local count = redis.call('ZCARD', key)
 if count < limit then
-    redis.call('ZADD', key, now, now .. '-' .. math.random())
+    redis.call('ZADD', key, now, now .. '-' .. count .. '-' .. math.random())
     redis.call('PEXPIRE', key, window * 1000)
     return {1, limit - count - 1}
 end
@@ -77,13 +78,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def _allow(self, identity: str, scope: str, limit: int, window_s: int) -> bool:
         if self._disabled or self.redis is None:
             return True
-        now_ms = int(time.time() * 1000)
         key = f"rl:{scope}:{identity}"
         try:
             if self._script_sha is None:
                 self._script_sha = await self.redis.script_load(_lua_sliding)
+            # 时钟源在 Lua 内取 Redis TIME；窗口传秒（Lua 内统一 ×1000 转 ms）
             allowed, _remaining = await self.redis.evalsha(
-                self._script_sha, 1, key, now_ms, window_s * 1000, limit
+                self._script_sha, 1, key, window_s, limit
             )
             return bool(int(allowed))
         except Exception as e:  # noqa: BLE001 - fail-open, logged once per burst

@@ -9,11 +9,14 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 RUN groupadd -r aisoc && useradd -r -g aisoc aisoc
 COPY --from=builder /install /usr/local
+# run from source (cwd precedes site-packages on sys.path)
+WORKDIR /srv/aisoc
 COPY app ./app
 COPY alembic.ini ./
 COPY alembic ./alembic
+# runtime-writable dirs: knowledge uploads land under BASE_DIR/data
+RUN mkdir -p /srv/aisoc/data && chown -R aisoc:aisoc /srv/aisoc
 USER aisoc
-WORKDIR /home/aisoc
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
   CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/v1/healthz')" || exit 1
