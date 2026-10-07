@@ -134,6 +134,13 @@ function AlertDetail({ alertId, onClose }: { alertId: string; onClose: () => voi
     onError: (e) => toast("error", errMsg(e)),
   });
 
+  const proposeAction = useMutation({
+    mutationFn: (body: { action: string; target: string | null; reason: string }) =>
+      api.post(`/api/v1/actions?alert_id=${alertId}`, body),
+    onSuccess: () => toast("success", "已发起审批，等待双人批准"),
+    onError: (e) => toast("error", errMsg(e)),
+  });
+
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/50 backdrop-blur-sm"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -201,12 +208,20 @@ function AlertDetail({ alertId, onClose }: { alertId: string; onClose: () => voi
                   </div>
                   {report.result.recommended_actions.length > 0 && (
                     <div>
-                      <div className="mb-1.5 text-xs font-medium text-slate-400">建议处置（需人工批准）</div>
+                      <div className="mb-1.5 text-xs font-medium text-slate-400">建议处置（审批后执行）</div>
                       {report.result.recommended_actions.map((a, i) => (
-                        <div key={i} className="mb-1.5 rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2 text-xs text-slate-300">
-                          <span className="font-mono text-violet-300">{a.action}</span>
-                          {a.target && <span className="font-mono"> → {a.target}</span>}
-                          <span className="text-slate-500"> · {a.reason}</span>
+                        <div key={i} className="mb-1.5 flex items-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2 text-xs text-slate-300">
+                          <div className="min-w-0 flex-1">
+                            <span className="font-mono text-violet-300">{a.action}</span>
+                            {a.target && <span className="font-mono"> → {a.target}</span>}
+                            <span className="text-slate-500"> · {a.reason}</span>
+                          </div>
+                          {canWrite && (
+                            <button className="btn-ghost !px-2 !py-1 text-[11px]" disabled={proposeAction.isPending}
+                              onClick={() => proposeAction.mutate({ action: a.action, target: a.target, reason: a.reason })}>
+                              发起审批
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>

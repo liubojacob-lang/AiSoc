@@ -21,6 +21,7 @@ from app.models.identity import (
 from app.models.incidents import Comment, Incident, IncidentAlert, Task
 from app.models.knowledge import KnowledgeChunk, KnowledgeDocument
 from app.models.ops import (
+    ActionApproval,
     Asset,
     AuditLog,
     IdempotencyKey,
@@ -30,6 +31,7 @@ from app.models.ops import (
 )
 
 __all__ = [
+    "ActionApproval",
     "Alert",
     "AlertEnrichment",
     "AlertFeedback",

@@ -13,6 +13,7 @@ const NAV = [
   { to: "/incidents", label: "事件中心", icon: "M12 6.5v5m0 3.5h.01M4 20h16a1 1 0 0 0 .9-1.6l-8-14a1 1 0 0 0-1.8 0l-8 14A1 1 0 0 0 4 20Z", minRole: null },
   { to: "/knowledge", label: "知识库", icon: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15Z", minRole: null },
   { to: "/assistant", label: "AI 助手", icon: "M8 10h.01M12 10h.01M16 10h.01M21 12a8.96 8.96 0 0 1-4.1 7.5L12 22l-4.9-2.5A8.96 8.96 0 0 1 3 12a9 9 0 1 1 18 0Z", minRole: null },
+  { to: "/approvals", label: "处置审批", icon: "M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z", minRole: "analyst" },
   { to: "/admin", label: "平台管理", icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 1-.1 1.2l2 1.6-2 3.4-2.4-1a7.5 7.5 0 0 1-2 1.2l-.4 2.6h-4l-.4-2.6a7.5 7.5 0 0 1-2-1.2l-2.4 1-2-3.4 2-1.6a7.4 7.4 0 0 1 0-2.4l-2-1.6 2-3.4 2.4 1a7.5 7.5 0 0 1 2-1.2L10.5 2h4l.4 2.6a7.5 7.5 0 0 1 2 1.2l2.4-1 2 3.4-2 1.6c.1.4.1.8.1 1.2Z", minRole: "admin" },
 ];
 
@@ -55,7 +56,7 @@ export default function Layout() {
           </div>
         </div>
         <nav className="mt-2 flex-1 space-y-1 px-3" aria-label="主导航">
-          {NAV.filter((n) => !n.minRole || hasRole(user, n.minRole)).map((n) => (
+          {NAV.filter((n) => !n.minRole || hasRole(user, n.minRole, "admin")).map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end}
               className={({ isActive }) =>
                 cn(

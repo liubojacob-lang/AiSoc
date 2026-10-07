@@ -71,6 +71,7 @@ npm install && npm run dev          # http://localhost:5173  admin@aisoc.dev / a
 | 事件中心 | PICERL 状态机（非法迁移拒绝）、任务、评论、MTTR 统计 |
 | 平台 | RBAC（admin/analyst/viewer + 权限矩阵）、JWT 双令牌轮换+重用检测、argon2id、账号锁定、Redis 滑动窗口限流（Redis 服务端时钟）、append-only 审计日志、站内通知 + Webhook 事件推送、Prometheus 指标 + Grafana 看板 + 告警规则、request_id 全链路结构化日志、健康检查 |
 | SOC 助手 | 自然语言查询告警/事件/统计/知识库：规划→工具→有据回答，带引用卡片与会话历史（`/assistant`） |
+| 处置审批 | AI 建议一键发起审批：分析师 L1 → 管理员 L2 双人批准（禁止自批）→ 可插拔执行器（webhook / 人工交接），全程审计+通知 |
 | 看板 | 告警量/降噪率/采纳率/MTTR/LLM 成本，全部真实表聚合 |
 
 **交互式架构可视化：打开根目录 `architecture.html`**（自包含单文件，含系统模块/数据流/AI 调用链/状态机/部署拓扑/ADR）。

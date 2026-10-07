@@ -24,6 +24,53 @@ JSONType = JSONB().with_variant(JSON(), "sqlite")
 InetType = INET().with_variant(String(45), "sqlite")
 
 
+class ActionApproval(Base, UUIDPk, Timestamped):
+    """处置动作审批单（AI 建议 / 人工发起）。
+
+    双人规则由服务层强制：L2 批准人必须持有 admin 角色且 != L1 批准人。
+    执行走可插拔执行器（webhook / 人工交接），结果落 execution_result。
+    """
+
+    __tablename__ = "action_approvals"
+    __table_args__ = (
+        Index("ix_actions_tenant_status", "tenant_id", "status"),
+        Index("ix_actions_alert", "alert_id"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
+    alert_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("alerts.id", ondelete="SET NULL"), nullable=True
+    )
+    triage_result_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("triage_results.id", ondelete="SET NULL"), nullable=True
+    )
+    action: Mapped[str] = mapped_column(String(64), nullable=False)  # block_ip/isolate_host/...
+    target: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="proposed")
+    proposed_by: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    approved_l1_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    approved_l1_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    approved_l2_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    approved_l2_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    rejected_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    rejected_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    executed_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    executed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    execution_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)  # webhook/manual
+    execution_result: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+
+
 class ThreatIntel(Base, UUIDPk, Timestamped):
     """Local IOC store queried by the triage agent (no external calls at runtime)."""
 

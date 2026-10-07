@@ -52,6 +52,18 @@ class TaskStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class ActionStatus(StrEnum):
+    """处置建议审批流：AI 建议 → 分析师 L1 → 管理员 L2（禁止自批）→ 执行。"""
+
+    PROPOSED = "proposed"
+    APPROVED_L1 = "approved_l1"
+    APPROVED = "approved"  # 双人批准完成，待执行
+    REJECTED = "rejected"
+    EXECUTED = "executed"
+    EXECUTION_FAILED = "execution_failed"
+    CANCELLED = "cancelled"
+
+
 class RunStatus(StrEnum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
@@ -123,6 +135,28 @@ ALERT_TRANSITIONS: dict[AlertStatus, set[AlertStatus]] = {
     AlertStatus.CONFIRMED_TRUE: {AlertStatus.INCIDENT_CREATED},
     AlertStatus.INCIDENT_CREATED: set(),
     AlertStatus.CONFIRMED_FALSE: set(),
+}
+
+ACTION_TRANSITIONS: dict[ActionStatus, set[ActionStatus]] = {
+    ActionStatus.PROPOSED: {
+        ActionStatus.APPROVED_L1,
+        ActionStatus.REJECTED,
+        ActionStatus.CANCELLED,
+    },
+    ActionStatus.APPROVED_L1: {
+        ActionStatus.APPROVED,
+        ActionStatus.REJECTED,
+        ActionStatus.CANCELLED,
+    },
+    ActionStatus.APPROVED: {
+        ActionStatus.EXECUTED,
+        ActionStatus.EXECUTION_FAILED,
+        ActionStatus.CANCELLED,
+    },
+    ActionStatus.EXECUTION_FAILED: {ActionStatus.EXECUTED},  # 修复后允许重试执行
+    ActionStatus.REJECTED: set(),
+    ActionStatus.EXECUTED: set(),
+    ActionStatus.CANCELLED: set(),
 }
 
 INCIDENT_TRANSITIONS: dict[IncidentStatus, set[IncidentStatus]] = {

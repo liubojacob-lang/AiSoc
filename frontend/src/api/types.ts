@@ -204,3 +204,22 @@ export interface AuditLog {
   request_id: string | null;
   created_at: string;
 }
+
+export interface ActionApproval {
+  id: string;
+  alert_id: string | null;
+  action: string;
+  target: string | null;
+  reason: string;
+  status: string;
+  proposed_by: string;
+  approved_l1_by: string | null;
+  approved_l2_by: string | null;
+  rejected_by: string | null;
+  rejected_reason: string | null;
+  executed_by: string | null;
+  executed_at: string | null;
+  execution_mode: string | null;
+  execution_result: Record<string, unknown> | null;
+  created_at: string;
+}

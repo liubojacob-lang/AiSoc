@@ -232,3 +232,23 @@ ops ─────────────────────────�
 | SQLite 降级策略 | `backend/app/db/compat.py`（向量 BLOB + 暴力检索） |
 
 Phase 2 完成。进入 Phase 3（AI 系统实现）。
+
+---
+
+## 10. 处置审批（P1 增补）
+
+### action_approvals
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | UUID PK | |
+| tenant_id / alert_id (SET NULL) / triage_result_id (SET NULL) | | 溯源链 |
+| action | VARCHAR(64) | block_ip / isolate_host / reset_password / …（白名单枚举校验于 API 层） |
+| target / reason | VARCHAR(255) / TEXT | 对象与理由 |
+| status | VARCHAR(24) | 状态机见 enums.ACTION_TRANSITIONS |
+| proposed_by (RESTRICT) | | 发起人（分析师） |
+| approved_l1_by / approved_l1_at | SET NULL | L1 批准（alert:write） |
+| approved_l2_by / approved_l2_at | SET NULL | L2 批准（admin 且 ≠ L1，服务层强制双人） |
+| rejected_by / rejected_reason | | 驳回记录 |
+| executed_by / executed_at / execution_mode / execution_result JSONB | | 执行器结果（webhook / manual 交接） |
+
+索引：ix(tenant_id,status)、ix(alert_id)。双人规则与执行器语义见 `app/modules/actions/service.py` 与 `app/platform/executors.py`。

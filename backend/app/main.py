@@ -14,6 +14,7 @@ from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger, request_id_var
 from app.core.metrics import HTTP_LATENCY
 from app.db.session import get_sessionmaker
+from app.modules.actions.router import router as actions_router
 from app.modules.ai.router import router as ai_router
 from app.modules.alerts.router import router as alerts_router
 from app.modules.analytics.router import router as analytics_router
@@ -97,6 +98,7 @@ def create_app() -> FastAPI:
         (incidents_router, "/incidents"),
         (knowledge_router, "/kb"),
         (analytics_router, "/analytics"),
+        (actions_router, "/actions"),
         (ai_router, "/ai"),
         (notifications_router, "/notifications"),
     ]:
@@ -110,6 +112,7 @@ def create_app() -> FastAPI:
                     "incidents": "incidents",
                     "kb": "knowledge",
                     "analytics": "analytics",
+                    "actions": "actions",
                     "ai": "ai",
                     "notifications": "notifications",
                 }[prefix.strip("/")],

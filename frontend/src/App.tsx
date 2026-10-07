@@ -9,6 +9,7 @@ import Alerts from "@/pages/Alerts";
 import Incidents from "@/pages/Incidents";
 import Knowledge from "@/pages/Knowledge";
 import Admin from "@/pages/Admin";
+import Approvals from "@/pages/Approvals";
 import Assistant from "@/pages/Assistant";
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/incidents" element={<Incidents />} />
           <Route path="/knowledge" element={<Knowledge />} />
           <Route path="/assistant" element={<Assistant />} />
+          <Route path="/approvals" element={<Approvals />} />
           <Route path="/admin" element={<Admin />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
