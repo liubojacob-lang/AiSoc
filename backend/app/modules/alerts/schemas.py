@@ -11,9 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import (
     AlertSeverity,
-    AlertStatus,
     HumanVerdict,
-    TriageClassification,
 )
 
 
@@ -59,7 +57,7 @@ class AlertOut(BaseModel):
     title: str
     description: str | None
     severity: str
-    status: AlertStatus
+    status: str
     alert_type: str
     src_ip: str | None = None
     dst_ip: str | None = None
@@ -93,7 +91,7 @@ class RecommendedActionOut(BaseModel):
 class TriageResultOut(BaseModel):
     id: uuid.UUID
     run_id: uuid.UUID
-    classification: TriageClassification
+    classification: str
     severity: str
     confidence: int
     reasoning: str

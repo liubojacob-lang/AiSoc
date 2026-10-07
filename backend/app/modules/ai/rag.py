@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -180,7 +181,7 @@ async def retrieve(
         )
     )
     chunks = (await session.execute(stmt)).scalars().all()
-    scored = []
+    scored: list[dict[str, Any]] = []
     for c in chunks:
         emb = c.embedding
         if emb is None:

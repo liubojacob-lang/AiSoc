@@ -103,6 +103,7 @@ async def run() -> dict:
     async with fresh_session() as session:
         from sqlalchemy import select
 
+        from app.models.enums import AlertSeverity
         from app.models.identity import User
         from app.models.knowledge import KnowledgeDocument
         from app.models.ops import Asset as AssetModel
@@ -131,12 +132,12 @@ async def run() -> dict:
         await session.commit()
 
         for identifier, kind, _display, name, crit, owner in ASSETS:
-            exists = (
+            asset_exists = (
                 await session.execute(
                     select(AssetModel).where(AssetModel.identifier == identifier)
                 )
             ).scalar_one_or_none()
-            if exists is None:
+            if asset_exists is None:
                 session.add(
                     AssetModel(
                         tenant_id=DEFAULT_TENANT_ID, identifier=identifier, kind=kind,
@@ -175,7 +176,7 @@ async def run() -> dict:
                 session, DEFAULT_TENANT_ID,
                 AlertIngest(
                     source=source, external_id=ext, title=title, description=desc,
-                    alert_type=atype, severity=sev, src_ip=sip,
+                    alert_type=atype, severity=AlertSeverity(sev), src_ip=sip,
                     occurred_at=utcnow() - timedelta(minutes=minutes),
                     raw={"demo": True},
                 ),

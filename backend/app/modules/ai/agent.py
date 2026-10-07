@@ -26,7 +26,7 @@ from app.models.alerts import Alert
 from app.models.enums import AlertSeverity, RunStatus, TriageClassification
 from app.modules.ai.gateway import GatewayError, LLMGateway
 from app.modules.ai.prompts import PROMPT_VERSION, TRIAGE_SYSTEM, TRIAGE_USER_TEMPLATE
-from app.modules.ai.schemas import AgentAction, ChatMessage, ChatRequest, TriagedVerdict
+from app.modules.ai.schemas import AgentAction, ChatMessage, ChatRequest, Evidence, TriagedVerdict
 from app.modules.ai.tools import (
     ToolContext,
     ToolResult,
@@ -64,10 +64,10 @@ def rule_based_verdict(alert: Alert) -> TriagedVerdict:
             "This is NOT a full AI analysis; manual review required."
         ),
         evidence=[
-            {
-                "source": "alert",
-                "detail": f"alert_type={alert.alert_type}; title={alert.title[:120]}",
-            }
+            Evidence(
+                source="alert",
+                detail=f"alert_type={alert.alert_type}; title={alert.title[:120]}",
+            )
         ],
         recommended_actions=[],
     )
@@ -183,7 +183,7 @@ class AgentRunner:
 
     # ---------- loop ----------
 
-    async def run(self) -> tuple[TriagedVerdict, AIRun]:
+    async def run(self) -> TriagedVerdict:
         run = await self._ensure_run()
         ctx = ToolContext(session=self.session, tenant_id=self.tenant_id, alert=self.alert)
         observations: list[tuple[str, ToolResult]] = []

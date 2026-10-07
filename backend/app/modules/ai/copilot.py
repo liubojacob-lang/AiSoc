@@ -102,8 +102,14 @@ class KnowledgeArgs(CopilotArgs):
 ToolFn = Callable[[AsyncSession, uuid.UUID, CopilotArgs], Awaitable[dict]]
 
 
-class CopilotTool:
-    def __init__(self, name: str, description: str, args_model: type[CopilotArgs], fn: ToolFn):
+class CopilotTool[CopilotArgsT: CopilotArgs]:
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        args_model: type[CopilotArgsT],
+        fn: Callable[[AsyncSession, uuid.UUID, CopilotArgsT], Awaitable[dict[str, Any]]],
+    ):
         self.name = name
         self.description = description
         self.args_model = args_model
@@ -119,10 +125,12 @@ _SEVERITY_SYNONYMS: dict[str, str] = {
 }
 
 
-def _normalize_severities(raw: str | None) -> list[str]:
+def _normalize_severities(raw: str | list[str] | None) -> list[str]:
     """'高危' / 'high,critical' / '严重或高危' → 枚举值列表；未识别则返回 []（不过滤）。"""
     if not raw:
         return []
+    if isinstance(raw, list):
+        raw = ",".join(str(x) for x in raw)
     tokens = [t.strip().lower() for t in raw.replace("或", ",").replace("、", ",").split(",")]
     out: list[str] = []
     for t in tokens:
@@ -275,9 +283,7 @@ async def _search_knowledge(session: AsyncSession, tenant_id: uuid.UUID, args: K
 
 from app.models.alerts import AlertFeedback  # noqa: E402 (used in _dashboard_stats)
 
-COPILOT_TOOLS: dict[str, CopilotTool] = {
-    t.name: t
-    for t in [
+_COPILOT_SPECS: list[CopilotTool[Any]] = [
         CopilotTool("search_alerts", "Search alerts by status/severity/keyword/source IP (latest 8).",
                     SearchAlertsArgs, _search_alerts),
         CopilotTool("incident_overview", "Incident counts by status + 5 most recent incidents.",
@@ -286,8 +292,9 @@ COPILOT_TOOLS: dict[str, CopilotTool] = {
                     DashboardStatsArgs, _dashboard_stats),
         CopilotTool("search_knowledge", "Semantic search over playbooks/knowledge base.",
                     KnowledgeArgs, _search_knowledge),
-    ]
-}
+]
+
+COPILOT_TOOLS: dict[str, CopilotTool[Any]] = {t.name: t for t in _COPILOT_SPECS}
 
 
 def _tool_docs() -> str:
@@ -319,7 +326,7 @@ class CopilotService:
     async def _conversation(self, conversation_id: uuid.UUID | None, title: str) -> AIConversation:
         if conversation_id:
             conv = await self.session.get(AIConversation, conversation_id)
-            if conv is not None and conv.tenant_id == self.tenant_id:
+            if conv is not None and conv.user_id == self._user_id:
                 return conv
         conv = AIConversation(user_id=self._user_id, title=title[:255])
         self.session.add(conv)

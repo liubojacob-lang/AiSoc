@@ -58,7 +58,7 @@ async def chat(
 ):
     service = CopilotService(get_gateway(), session, tenant_id=principal.tenant_id)
     result = await service.ask(
-        user_id=principal.user_id,
+        user_id=principal.user_uuid,
         question=body.question,
         conversation_id=body.conversation_id,
     )
@@ -79,8 +79,8 @@ async def list_conversations(
         await session.execute(
             select(AIConversation)
             .where(
-                AIConversation.user_id == principal.user_id,
-                AIConversation.user_id == principal.user_id,
+                AIConversation.user_id == principal.user_uuid,
+                AIConversation.user_id == principal.user_uuid,
             )
             .order_by(AIConversation.updated_at.desc())
             .limit(30)
@@ -99,7 +99,7 @@ async def conversation_messages(
     session: AsyncSession = Depends(get_session),
 ):
     conv = await session.get(AIConversation, conversation_id)
-    if conv is None or conv.user_id != principal.user_id:
+    if conv is None or conv.user_id != principal.user_uuid:
         from app.core.errors import NotFound
 
         raise NotFound("conversation", conversation_id)

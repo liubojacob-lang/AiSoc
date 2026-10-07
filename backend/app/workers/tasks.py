@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from typing import Any, cast
 
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger, request_id_var
@@ -131,6 +132,7 @@ async def cleanup_expired_body() -> dict:
     from datetime import timedelta
 
     from sqlalchemy import delete, select, text
+    from sqlalchemy.engine import CursorResult
 
     from app.db.base import utcnow
     from app.db.session import fresh_session
@@ -152,7 +154,10 @@ async def cleanup_expired_body() -> dict:
             delete(Notification).where(Notification.id.in_(ids) if ids else text("false"))
         )
         await session.commit()
-        return {"idempotency_deleted": r1.rowcount, "notifications_deleted": r2.rowcount}
+        return {
+            "idempotency_deleted": cast(CursorResult[Any], r1).rowcount,
+            "notifications_deleted": cast(CursorResult[Any], r2).rowcount,
+        }
 
 
 # ---------------- Celery task wrappers ----------------

@@ -33,6 +33,8 @@ async def dispatch_triage(
         # 任务对象定义在 tasks 模块（celery_app 仅提供 app 实例）
         from app.workers.tasks import triage_alert_task
 
+        if triage_alert_task is None:  # pragma: no cover - celery 注册失败已在启动期告警
+            raise RuntimeError("celery triage task not registered")
         triage_alert_task.delay(
             str(alert_id),
             str(tenant_id),
@@ -49,6 +51,8 @@ async def dispatch_index_document(document_id: uuid.UUID, tenant_id: uuid.UUID) 
     else:
         from app.workers.tasks import index_document_task
 
+        if index_document_task is None:  # pragma: no cover
+            raise RuntimeError("celery index task not registered")
         index_document_task.delay(str(document_id), str(tenant_id))
 
 

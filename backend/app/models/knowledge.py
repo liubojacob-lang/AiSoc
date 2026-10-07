@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import JSON, ForeignKey, Index, LargeBinary, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -13,10 +14,12 @@ from app.db.base import Base, Timestamped, UTCDateTime, UUIDPk, utcnow
 
 JSONType = JSONB().with_variant(JSON(), "sqlite")
 
+EMBED_DIM = 1024
+
 try:  # pgvector is PG-only; sqlite fallback stores raw bytes
     from pgvector.sqlalchemy import Vector
 
-    EmbeddingType = Vector(1024).with_variant(LargeBinary, "sqlite")
+    EmbeddingType: Any = Vector(EMBED_DIM).with_variant(LargeBinary, "sqlite")
 except ImportError:  # pragma: no cover - pgvector ships as a hard dependency
     EmbeddingType = LargeBinary
 

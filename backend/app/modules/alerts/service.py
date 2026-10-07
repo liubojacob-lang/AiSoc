@@ -4,9 +4,10 @@ status-machine enforcement, triage pipeline orchestration."""
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import Conflict, NotFound
@@ -177,7 +178,7 @@ async def transition(session: AsyncSession, alert: Alert, to: AlertStatus) -> No
         .where(Alert.id == alert.id, Alert.status == current)
         .values(status=to, updated_at=utcnow())
     )
-    if res.rowcount == 0:
+    if cast(CursorResult[Any], res).rowcount == 0:
         raise Conflict("alert.concurrent_modification", "alert state changed concurrently")
     alert.status = to
 

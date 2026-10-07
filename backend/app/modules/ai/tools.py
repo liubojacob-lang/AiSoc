@@ -63,11 +63,11 @@ class ToolContext:
 
 
 @dataclass
-class ToolSpec:
+class ToolSpec[ArgsT: ToolArgs]:
     name: str
     description: str
-    args_model: type[ToolArgs]
-    fn: Callable[[ToolContext, ToolArgs], Awaitable[dict[str, Any]]]
+    args_model: type[ArgsT]
+    fn: Callable[[ToolContext, ArgsT], Awaitable[dict[str, Any]]]
 
 
 # ---------- implementations (all read-only) ----------
@@ -233,9 +233,8 @@ async def _propose_action(ctx: ToolContext, args: ProposeActionArgs) -> dict:
     }
 
 
-REGISTRY: dict[str, ToolSpec] = {
-    spec.name: spec
-    for spec in [
+_SPECS: list[ToolSpec[Any]] = [
+
         ToolSpec(
             "query_threat_intel",
             "Look up an IP/domain/hash in the local threat-intel store (reputation 0-100, tags).",
@@ -272,8 +271,9 @@ REGISTRY: dict[str, ToolSpec] = {
             ProposeActionArgs,
             _propose_action,
         ),
-    ]
-}
+]
+
+REGISTRY: dict[str, ToolSpec[Any]] = {spec.name: spec for spec in _SPECS}
 
 
 def tool_docs() -> str:

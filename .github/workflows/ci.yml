@@ -39,6 +39,7 @@ jobs:
         run: |
           ruff check app tests
           ruff format --check app tests || true
+          mypy app
       - name: Migrations roundtrip (real Postgres)
         working-directory: backend
         run: |

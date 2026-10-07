@@ -61,7 +61,8 @@ ignore = ["S101", "B008"]  # assert in tests; FastAPI Depends in defaults
 python_version = "3.12"
 strict = false
 warn_unused_ignores = true
-plugins = []
+ignore_missing_imports = true
+exclude = ["tests_e2e/"]
 
 [tool.ruff.lint.per-file-ignores]
 # tests hold literal credentials for fixtures; randomness is for ids/backoff

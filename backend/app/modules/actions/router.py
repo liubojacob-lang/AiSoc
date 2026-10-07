@@ -26,12 +26,12 @@ async def propose_action(
 ):
     row = await service.propose(
         session, principal.tenant_id, alert_id,
-        actor=principal.user_id, action=body.action, target=body.target,
+        actor=principal.user_uuid, action=body.action, target=body.target,
         reason=body.reason, triage_result_id=body.triage_result_id,
     )
     await audit(
         session, action="action.propose", resource_type="action_approval",
-        resource_id=row.id, actor_id=principal.user_id,
+        resource_id=row.id, actor_id=principal.user_uuid,
         tenant_id=principal.tenant_id, request=request,
         detail={"action": row.action, "target": row.target},
     )
@@ -46,7 +46,7 @@ async def propose_action(
             title=f"处置审批待 L2：{row.action} → {row.target or '-'}",
             body=body.reason[:200],
             link_path="/approvals",
-            exclude_user=principal.user_id,
+            exclude_user=principal.user_uuid,
         )
         await session.commit()
     except Exception as e:  # noqa: BLE001 - 通知失败不影响审批流
@@ -83,13 +83,13 @@ async def approve_action(
 ):
     is_admin = "admin" in principal.roles
     row = await service.approve(
-        session, principal.tenant_id, action_id, actor=principal.user_id, is_admin=is_admin
+        session, principal.tenant_id, action_id, actor=principal.user_uuid, is_admin=is_admin
     )
     await audit(
         session,
         action="action.approve_l1" if row.status == "approved_l1" else "action.approve_l2",
         resource_type="action_approval", resource_id=row.id,
-        actor_id=principal.user_id, tenant_id=principal.tenant_id, request=request,
+        actor_id=principal.user_uuid, tenant_id=principal.tenant_id, request=request,
     )
     await session.commit()
     return row
@@ -104,11 +104,11 @@ async def reject_action(
     session: AsyncSession = Depends(get_session),
 ):
     row = await service.reject(
-        session, principal.tenant_id, action_id, actor=principal.user_id, reason=body.reason
+        session, principal.tenant_id, action_id, actor=principal.user_uuid, reason=body.reason
     )
     await audit(
         session, action="action.reject", resource_type="action_approval", resource_id=row.id,
-        actor_id=principal.user_id, tenant_id=principal.tenant_id, request=request,
+        actor_id=principal.user_uuid, tenant_id=principal.tenant_id, request=request,
         detail={"reason": body.reason[:200]},
     )
     await session.commit()
@@ -122,10 +122,10 @@ async def cancel_action(
     principal: Principal = Depends(require(Permission.ALERT_WRITE)),
     session: AsyncSession = Depends(get_session),
 ):
-    row = await service.cancel(session, principal.tenant_id, action_id, actor=principal.user_id)
+    row = await service.cancel(session, principal.tenant_id, action_id, actor=principal.user_uuid)
     await audit(
         session, action="action.cancel", resource_type="action_approval", resource_id=row.id,
-        actor_id=principal.user_id, tenant_id=principal.tenant_id, request=request,
+        actor_id=principal.user_uuid, tenant_id=principal.tenant_id, request=request,
     )
     await session.commit()
     return row
@@ -139,11 +139,11 @@ async def execute_action_route(
     session: AsyncSession = Depends(get_session),
 ):
     row = await service.execute(
-        session, principal.tenant_id, action_id, actor=principal.user_id
+        session, principal.tenant_id, action_id, actor=principal.user_uuid
     )
     await audit(
         session, action="action.execute", resource_type="action_approval", resource_id=row.id,
-        actor_id=principal.user_id, tenant_id=principal.tenant_id, request=request,
+        actor_id=principal.user_uuid, tenant_id=principal.tenant_id, request=request,
         detail={"status": row.status, "mode": row.execution_mode},
     )
     await session.commit()

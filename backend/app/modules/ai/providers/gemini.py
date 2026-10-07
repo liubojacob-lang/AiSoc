@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 
 from app.modules.ai.providers.base import LLMProvider, ProviderFatalError, ProviderTransientError
@@ -39,7 +41,7 @@ class GeminiProvider(LLMProvider):
                     "parts": [{"text": m["content"]}],
                 }
             )
-        generation = {"temperature": temperature, "maxOutputTokens": max_tokens}
+        generation: dict[str, Any] = {"temperature": temperature, "maxOutputTokens": max_tokens}
         if json_mode:
             generation["responseMimeType"] = "application/json"
         body: dict = {"contents": contents, "generationConfig": generation}

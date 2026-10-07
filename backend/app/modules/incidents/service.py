@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any, cast
 
 from sqlalchemy import func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import Conflict, NotFound, ValidationFailed
@@ -137,7 +139,7 @@ async def transition(
             reopened_count=incident.reopened_count + (1 if target == IncidentStatus.REOPENED else 0),
         )
     )
-    if res.rowcount == 0:
+    if cast(CursorResult[Any], res).rowcount == 0:
         raise Conflict(
             "incident.concurrent_modification",
             f"incident state changed concurrently (was {current})",
@@ -215,7 +217,7 @@ async def transition_task(
             completed_at=utcnow() if target == TaskStatus.DONE else None,
         )
     )
-    if res.rowcount == 0:
+    if cast(CursorResult[Any], res).rowcount == 0:
         raise Conflict("task.concurrent_modification", f"task state changed concurrently (was {current})")
     await session.refresh(task)
     return task

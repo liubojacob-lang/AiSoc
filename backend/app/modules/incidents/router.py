@@ -24,14 +24,14 @@ async def create_incident(
     session: AsyncSession = Depends(get_session),
 ):
     incident = await service.create_incident(
-        session, principal.tenant_id, data=body, opened_by=principal.user_id
+        session, principal.tenant_id, data=body, opened_by=principal.user_uuid
     )
     await audit(
         session,
         action="incident.create",
         resource_type="incident",
         resource_id=incident.id,
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         tenant_id=principal.tenant_id,
         request=request,
         detail={"title": incident.title, "severity": incident.severity},
@@ -84,14 +84,14 @@ async def transition_incident(
         to=body.to_status,
         reason=body.reason,
         close_summary=body.close_summary,
-        actor=principal.user_id,
+        actor=principal.user_uuid,
     )
     await audit(
         session,
         action="incident.transition",
         resource_type="incident",
         resource_id=incident.id,
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         tenant_id=principal.tenant_id,
         request=request,
         detail={"to": body.to_status, "reason": body.reason[:200]},
@@ -112,14 +112,14 @@ async def create_task(
     session: AsyncSession = Depends(get_session),
 ):
     task = await service.create_task(
-        session, principal.tenant_id, incident_id, data=body, created_by=principal.user_id
+        session, principal.tenant_id, incident_id, data=body, created_by=principal.user_uuid
     )
     await audit(
         session,
         action="task.create",
         resource_type="task",
         resource_id=task.id,
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         tenant_id=principal.tenant_id,
         request=request,
     )
@@ -152,7 +152,7 @@ async def transition_task(
         action="task.transition",
         resource_type="task",
         resource_id=task.id,
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         tenant_id=principal.tenant_id,
         request=request,
         detail={"to": body.to_status, "reason": body.reason},
@@ -173,14 +173,14 @@ async def add_comment(
     session: AsyncSession = Depends(get_session),
 ):
     comment = await service.add_comment(
-        session, principal.tenant_id, incident_id, body=body.body, author=principal.user_id
+        session, principal.tenant_id, incident_id, body=body.body, author=principal.user_uuid
     )
     await audit(
         session,
         action="incident.comment",
         resource_type="incident",
         resource_id=incident_id,
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         tenant_id=principal.tenant_id,
         request=request,
     )

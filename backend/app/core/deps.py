@@ -46,6 +46,15 @@ class Principal:
     def has(self, permission: Permission) -> bool:
         return permission in self.permissions
 
+    @property
+    def user_uuid(self) -> uuid.UUID:
+        """user_id for user principals (api-key principals have none).
+        Routes behind require() are always user principals, so this is the
+        typed accessor for service calls that need a non-null user id."""
+        if self.user_id is None:
+            raise Unauthenticated("auth.user_required", "this action requires a user principal")
+        return self.user_id
+
 
 async def _load_user_principal(session: AsyncSession, token: str) -> Principal:
     try:

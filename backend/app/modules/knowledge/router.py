@@ -30,7 +30,7 @@ MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 class DocumentOut(BaseModel):
     id: uuid.UUID
     title: str
-    status: DocumentStatus
+    status: str
     chunk_count: int
     size_bytes: int
     sha256: str

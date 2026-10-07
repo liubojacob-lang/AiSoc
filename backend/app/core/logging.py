@@ -11,6 +11,7 @@ import logging
 import sys
 
 import structlog
+from structlog.typing import Processor
 
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
 
@@ -20,7 +21,7 @@ def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
 
 
 def configure_logging(level: str = "INFO", pretty: bool = True) -> None:
-    shared = [
+    shared: list[Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,

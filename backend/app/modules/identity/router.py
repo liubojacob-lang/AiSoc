@@ -92,7 +92,11 @@ async def me(
     principal: Principal = Depends(require(Permission.ALERT_READ)),
     session: AsyncSession = Depends(get_session),
 ):
-    user = await session.get(User, principal.user_id)
+    user = await session.get(User, principal.user_uuid)
+    if user is None:
+        from app.core.errors import NotFound
+
+        raise NotFound("user", principal.user_uuid)
     return schemas.UserOut(
         id=user.id,
         email=user.email,
@@ -150,7 +154,7 @@ async def create_user(
         resource_type="user",
         resource_id=user.id,
         detail={"email": user.email, "roles": body.roles},
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         request=request,
     )
     await session.commit()
@@ -181,7 +185,7 @@ async def update_user(
         resource_type="user",
         resource_id=user.id,
         detail={"fields": list(body.model_dump(exclude_unset=True))},
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         request=request,
     )
     await session.commit()
@@ -249,7 +253,7 @@ async def create_api_key(
         scopes=body.scopes,
         rate_limit_per_min=body.rate_limit_per_min,
         expires_in_days=body.expires_in_days,
-        created_by=principal.user_id,
+        created_by=principal.user_uuid,
     )
     await audit(
         session,
@@ -257,7 +261,7 @@ async def create_api_key(
         resource_type="api_key",
         resource_id=row.id,
         detail={"name": row.name, "scopes": row.scopes},
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         request=request,
     )
     await session.commit()
@@ -287,7 +291,7 @@ async def revoke_api_key(
         action="api_key.revoke",
         resource_type="api_key",
         resource_id=key_id,
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         request=request,
     )
     await session.commit()

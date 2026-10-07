@@ -167,7 +167,7 @@ async def confirm_alert(
         session,
         principal.tenant_id,
         alert_id,
-        user_id=principal.user_id,
+        user_id=principal.user_uuid,
         verdict=body.verdict,
         reason=body.reason,
     )
@@ -176,7 +176,7 @@ async def confirm_alert(
         action="alert.confirm",
         resource_type="alert",
         resource_id=alert.id,
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         tenant_id=principal.tenant_id,
         request=request,
         detail={"verdict": body.verdict, "reason": body.reason[:200]},
@@ -202,7 +202,7 @@ async def escalate_alert(
         session,
         principal.tenant_id,
         alert_id,
-        user_id=principal.user_id,
+        user_id=principal.user_uuid,
         incident_id=uuid.UUID(incident_id),
     )
     await audit(
@@ -210,7 +210,7 @@ async def escalate_alert(
         action="alert.escalate",
         resource_type="alert",
         resource_id=alert.id,
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         tenant_id=principal.tenant_id,
         request=request,
         detail={"incident_id": incident_id},
@@ -237,13 +237,13 @@ async def retry_triage(
     await session.commit()
     from app.workers.dispatch import dispatch_triage
 
-    await dispatch_triage(alert.id, principal.tenant_id, triggered_by=principal.user_id)
+    await dispatch_triage(alert.id, principal.tenant_id, triggered_by=principal.user_uuid)
     await audit(
         session,
         action="alert.retry_triage",
         resource_type="alert",
         resource_id=alert.id,
-        actor_id=principal.user_id,
+        actor_id=principal.user_uuid,
         tenant_id=principal.tenant_id,
         request=request,
     )
