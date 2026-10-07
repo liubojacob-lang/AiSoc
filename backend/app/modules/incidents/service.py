@@ -274,7 +274,11 @@ async def mttr_hours(session: AsyncSession, tenant_id: uuid.UUID) -> float | Non
     ).all()
     if not rows:
         return None
-    durations = sorted((c - o).total_seconds() / 3600 for o, c in rows)
+    durations = sorted(
+        (c - o).total_seconds() / 3600
+        for o, c in rows
+        if o is not None and c is not None
+    )
     n = len(durations)
     mid = n // 2
     med = durations[mid] if n % 2 else (durations[mid - 1] + durations[mid]) / 2

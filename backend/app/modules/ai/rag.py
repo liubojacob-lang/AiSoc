@@ -123,9 +123,17 @@ async def index_document(
     return len(chunks)
 
 
+def _is_sqlite(session: AsyncSession) -> bool:
+    from typing import cast
+
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
+    return cast(AsyncEngine, session.bind).dialect.name == "sqlite"
+
+
 def _prepare_embedding(session: AsyncSession, vec: list[float]):
     """pgvector accepts python lists on PG; sqlite variant stores a blob."""
-    if session.bind.dialect.name == "sqlite":
+    if _is_sqlite(session):
         return vector_to_blob(vec)
     return vec
 
@@ -147,7 +155,7 @@ async def retrieve(
     """
     [qvec] = await gateway.embed([query])
 
-    if session.bind.dialect.name == "postgresql":
+    if not _is_sqlite(session):
         distance = KnowledgeChunk.embedding.cosine_distance(qvec)
         stmt = (
             select(KnowledgeChunk, (1 - distance).label("score"))
