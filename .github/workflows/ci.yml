@@ -91,7 +91,7 @@ jobs:
     environment: staging
     steps:
       - name: Deploy staging (compose over ssh) — 占位，填入主机后启用
-        run: echo "ssh deploy: pull new sha tags, alembic upgrade head, /readyz gate, e2e smoke"
+        run: echo 'ssh deploy -> pull new sha tags, alembic upgrade head, /readyz gate, e2e smoke' 
 
   deploy-production:
     needs: deploy-staging
