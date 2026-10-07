@@ -40,6 +40,7 @@ services:
       CORS_ORIGINS: '["http://localhost:8080"]'
       # LLM 路由示例：研判走主力模型，嵌入走廉价模型；未配置 key 的 provider 会在启动时报错
       LLM_ROUTING: ${LLM_ROUTING:-'{"triage":["deepseek:deepseek-chat"],"embed":["deepseek:deepseek-chat"]}'}
+      LLM_PRICE_TABLE: ${LLM_PRICE_TABLE:-{}}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}

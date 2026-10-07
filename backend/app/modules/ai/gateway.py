@@ -317,6 +317,7 @@ class LLMGateway:
         req = request.model_copy(update={"messages": messages, "json_mode": True})
 
         last_resp: ChatResponse | None = None
+        max_tokens = request.max_tokens
         for attempt in range(2):
             resp = await self.chat(req, run_id=run_id)
             last_resp = resp
@@ -339,17 +340,32 @@ class LLMGateway:
                             ),
                         )
                     )
-                    req = request.model_copy(update={"messages": messages, "json_mode": True})
+                    # 推理模型可能在思考上耗尽预算：修复轮放宽 token 上限
+                    max_tokens = min(max_tokens * 2, 8000)
+                    req = request.model_copy(
+                        update={"messages": messages, "json_mode": True, "max_tokens": max_tokens}
+                    )
                     continue
             else:
+                empty_hint = (
+                    "You produced no visible content (it was likely consumed by reasoning). "
+                    if not resp.content.strip()
+                    else ""
+                )
                 messages.append(ChatMessage(role="assistant", content=resp.content[:2000]))
                 messages.append(
                     ChatMessage(
                         role="user",
-                        content="That was not valid JSON per the schema. Respond again with ONLY valid JSON.",
+                        content=(
+                            empty_hint
+                            + "That was not valid JSON per the schema. Respond again with ONLY valid JSON."
+                        ),
                     )
                 )
-                req = request.model_copy(update={"messages": messages, "json_mode": True})
+                max_tokens = min(max_tokens * 2, 8000)
+                req = request.model_copy(
+                    update={"messages": messages, "json_mode": True, "max_tokens": max_tokens}
+                )
         assert last_resp is not None
         raise GatewayError(
             [{"model": last_resp.model_key, "error": "structured output failed validation"}]

@@ -65,12 +65,26 @@ docker compose exec db pg_restore -U aisoc -d aisoc_clean --no-owner /backups/ai
 ## 6. 监控与告警
 
 - 指标：`GET /metrics`（Prometheus 格式）——HTTP 时延直方图、AI 调用/耗时/token/成本计数、研判结果计数。
-- 建议 Prometheus 抓取 15s + 以下告警规则（Grafana 导入随交付）：
-  - `rate(aisoc_http_request_seconds_count{status=~"5.."}[5m]) / rate(...)` > 2% 持续 10min
-  - `increase(aisoc_triage_runs_total{status="degraded"}[30m]) > 总量 30%` → LLM 链路异常
-  - `aisoc_celery_queue_depth{queue="triage"} > 100` 持续 15min → 扩容 worker
-  - 日成本 `aisoc_ai_cost_usd_total` 突增 > 5×7 日均值 → 预算异常
+- 一键监控栈：`docker compose --profile monitoring up -d`（Prometheus :9090 + Grafana :3300，看板 JSON 已预置 provisioning）。
+- 告警规则见 `deploy/monitoring/alerts.yml`：
+  - API 5xx 比例 >2% 持续 10min
+  - 研判降级占比 >30%（LLM 链路异常）
+  - 30 分钟研判失败 >5 次
+  - LLM 小时成本突增 >5× 昨日均值
+  - triage 队列堆积 >100 持续 15min
 - 健康探针：`/healthz`（进程）`/readyz`（DB/Redis 依赖）——编排器以 readyz 为流量门禁。
+
+## 6.5 AI 评估基线（golden set）
+
+```bash
+cd backend
+DATABASE_URL="sqlite:///./_eval.db" TASK_INLINE=true .venv/Scripts/python scripts/eval_golden.py
+```
+
+对 10 条带标注告警跑真实研判管线，输出分类/定级准确率、证据完整性、降级率、token/成本。
+结果写入 `backend/eval/baseline-*.json`。CI 门禁：结构化合法率 100%（畸形输出绝不入库）、
+证据覆盖率 100%；准确率与最近一次 baseline 对比，回归即阻断发布。
+换模型/改 Prompt 后必须重跑并更新基线。
 
 ## 7. 安全运维清单（上线前逐项打勾）
 

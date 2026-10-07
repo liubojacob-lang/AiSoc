@@ -29,3 +29,5 @@ backups/
 # --- 非本项目内容 / 运行时数据 ---
 ECC/
 backend/data/
+backend/_eval.db
+backend/scripts/__pycache__/
