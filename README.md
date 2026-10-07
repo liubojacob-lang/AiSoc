@@ -2,6 +2,8 @@
 
 # AISOC · AI-Powered Security Operations Center
 
+[![CI/CD](https://github.com/liubojacob-lang/AiSoc/actions/workflows/ci.yml/badge.svg)](https://github.com/liubojacob-lang/AiSoc/actions/workflows/ci.yml)
+
 **开源、可私有化部署的 AI 安全运营平台**
 告警自动富化研判（LLM Agent + 工具调用）→ 人机协同确认 → 事件处置闭环，全程可审计、可回放、成本可核算。
 
