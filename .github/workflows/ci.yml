@@ -7,7 +7,8 @@ on:
 
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    # 固定 runner 版本：ubuntu-latest 自 2026-10-19 起逐步迁移到 Ubuntu 26，验证兼容后再跟进升级
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -28,8 +29,8 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       BOOTSTRAP_ADMIN_PASSWORD: ci-admin-password-123
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: { python-version: "3.12", cache: pip }
       - name: Install
         working-directory: backend
@@ -51,13 +52,15 @@ jobs:
         run: pytest tests/ -q --tb=short
       - name: Tests against real Postgres (integration marker)
         working-directory: backend
-        run: pytest tests/ -q -m integration --tb=short || echo "::warning::PG-marker suite pending expansion"
+        # integration 用例待补：暂无匹配用例时 pytest 以退出码 5（no tests collected）结束，不视为失败；
+        # 用例补齐后，真实测试失败（退出码 1）仍会正常阻断 CI
+        run: pytest tests/ -q -m integration --tb=short || [ $? -eq 5 ]
 
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
       - name: Install
         working-directory: frontend
@@ -69,11 +72,11 @@ jobs:
   images:
     needs: [backend, frontend]
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions: { contents: read, packages: write }
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v4
       - name: Build images (sha tags, immutable)
         run: |
           # Docker 镜像名必须全小写：仓库名 AiSoc 含大写，用 bash 展开统一转小写
@@ -89,7 +92,7 @@ jobs:
   deploy-staging:
     needs: images
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: staging
     steps:
       - name: Deploy staging (compose over ssh) — 占位，填入主机后启用
@@ -98,7 +101,7 @@ jobs:
   deploy-production:
     needs: deploy-staging
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: production   # GitHub Environment 保护：需人工审批
     steps:
       - name: Deploy production — 占位，填入主机后启用
